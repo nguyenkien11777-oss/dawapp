@@ -1,259 +1,271 @@
-# BeatForge – Ứng dụng Loop Beat & Voice Sampler (Desktop Offline)
+BeatForge
 
-🚀 Giới thiệu
+BeatForge là một ứng dụng desktop chạy local (Windows) được xây dựng bằng Tauri v2 + Rust + WebAudio API, cho phép người dùng:
 
-BeatForge là một ứng dụng desktop chạy hoàn toàn offline trên Windows, cho phép người dùng:
+Thu âm trực tiếp từ micro
 
-🎙 Thu âm trực tiếp từ micro
+Tạo loop beat theo grid 3x3
 
-🎚 Tự động chuẩn hóa âm lượng (Normalize -1dB)
+Điều chỉnh BPM
 
-🎵 Tạo beat theo dạng lặp (Loop Sequencer)
+Chỉnh gain per-cell
 
-🟦 Sắp xếp âm thanh trên grid 3x3
+Loop theo column scheduler
 
-🔁 Phát lại theo BPM tùy chỉnh (20–300 BPM)
+Normalize và bảo vệ clipping
 
-💾 Lưu nhiều project riêng biệt
+Export MP3 offline bằng ffmpeg
 
-🎧 Xuất file MP3 bằng ffmpeg (không dùng API trả phí)
+Ứng dụng hoạt động hoàn toàn offline, mỗi máy lưu dữ liệu riêng biệt.
 
-Ứng dụng được xây dựng bằng:
+Mục tiêu thiết kế
 
-HTML + CSS + JavaScript (Frontend)
+BeatForge được thiết kế theo nguyên tắc:
 
-Tauri (đóng gói thành file .exe)
+Offline-first
 
-Rust backend (xử lý file & encode MP3)
+Không phụ thuộc API trả phí
 
-WebAudio API (xử lý âm thanh realtime)
+1 user / 1 máy
 
-Hoạt động hoàn toàn offline.
+Dữ liệu local trong AppData
 
-🧱 Kiến trúc tổng thể
-1️⃣ Loại ứng dụng
+Kiến trúc tách biệt rõ ràng giữa UI, Audio Engine và Backend
 
-Ứng dụng Desktop (.exe)
+Mục tiêu dài hạn: có thể mở rộng thành mini DAW cá nhân.
 
-Chạy local trên Windows
+Kiến trúc tổng thể
+Frontend (Vanilla JS + WebAudio)
+src/
+ ├ index.html
+ ├ style.css
+ ├ main.js
+ ├ ui.js
+ ├ audioEngine.js
+ ├ recorder.js
+ ├ scheduler.js
+ ├ projectManager.js
+ ├ exportManager.js
+audioEngine.js
 
-Không cần internet
+Quản lý AudioContext
 
-Không sử dụng API trả phí
-🟦 Hệ thống Grid (Sequencer)
+PlaybackRate (gộp pitch + tempo)
 
-Kích thước: 3x3
+Master gain cap 0.7
 
-Tổng cộng 9 ô độc lập
+Per-cell gain
 
-Mỗi ô chứa 1 sample riêng
+Normalize về -1dB (~0.891)
 
-Loop theo từng cột
+Fade in/out 5ms
 
-Cách hoạt động:
+Clamp sample [-1, 1]
 
-Cột 0 → phát tất cả ô active ở cột 0
-Cột 1 → phát tất cả ô active ở cột 1
-Cột 2 → phát tất cả ô active ở cột 2
-→ Lặp lại
+Sample-rate mismatch handling
 
-Step type hỗ trợ:
+Source cleanup (stop + disconnect)
 
-1/4
+recorder.js
 
-1/8
+1 recording tại 1 thời điểm
 
-1/16
+Max sample duration: 60s
 
-🎙 Hệ thống ghi âm
-Quy tắc:
+Overwrite sample cũ nếu ghi lại
 
-Chỉ cho phép 1 recording tại 1 thời điểm
+Stream track cleanup
 
-Mỗi ô ghi tối đa 60 giây
+scheduler.js
 
-Không cho ghi chồng
+Look-ahead scheduler
 
-Ghi lại sẽ xóa sample cũ
+Poll interval: 25ms
 
-Tự động Normalize về -1dB
+Schedule window: 100ms
 
-Tự động Fade in/out 5ms để tránh click pop
+Loop theo column 0 → 1 → 2
 
-Lưu file WAV vào folder project
+Dựa trên audioContext.currentTime
 
-Beat tổng không giới hạn thời gian.
+projectManager.js
 
-🎚 Normalize -1dB là gì?
+Autosave
 
-Âm thanh digital có biên độ từ -1.0 đến +1.0.
-
-Nếu đạt 1.0 → có thể gây clipping.
-
-Normalize -1dB nghĩa là:
-
-Tìm biên độ lớn nhất trong sample
-
-Scale toàn bộ waveform sao cho peak ≈ 0.891
-
-Đảm bảo âm lượng lớn nhưng không vỡ
-
-🔊 Hệ thống âm thanh
-Core Engine gồm:
-
-AudioContext
-
-Scheduler precision cao
-
-Master Gain giới hạn 0.7
-
-Peak Meter realtime
-
-AnalyserNode
-
-🛡 Clipping Protection
-
-MasterGain giới hạn 0.7
-
-Normalize -1dB
-
-Tránh vỡ tiếng khi nhiều sample phát cùng lúc
-
-🧠 Scheduler Precision
-
-Không dùng setInterval đơn giản.
-
-Sử dụng kỹ thuật lookAhead scheduling dựa trên:
-
-audioContext.currentTime
-
-Đảm bảo beat chính xác ngay cả khi CPU bận.
-
-🔄 Xử lý Sample Rate Mismatch
-
-Tự động resample về sampleRate của AudioContext
-
-Offline render dùng cùng sampleRate
-
-Tránh lỗi lệch cao độ
-
-🧹 Memory Leak Protection
-
-Khi:
-
-Ghi lại
-
-Xóa sample
-
-Load project
-
-Hệ thống sẽ:
-
-Stop source
-
-Disconnect node
-
-Clear buffer
-
-Giải phóng bộ nhớ
-
-💾 Project Management
-
-Hỗ trợ nhiều project
-
-Autosave sau mỗi thay đổi
-
-Phục hồi project nếu app crash
-
-Undo / Redo bằng stack state
-
-🎵 Xuất MP3
-
-Quy trình:
-
-Render toàn bộ loop bằng OfflineAudioContext
-
-Xuất WAV
-
-Gửi sang Rust backend
-
-Rust dùng ffmpeg encode MP3
-
-Không cần API trả phí.
-
-📊 Peak Meter
-
-Hiển thị mức âm thanh realtime.
-Giúp:
-
-Tránh clipping
-
-Theo dõi mức volume
-
-🎛 Thông số kỹ thuật
-
-BPM: 20 – 300
-
-Max sample mỗi ô: 60 giây
-
-Tổng số sample tối đa: 9
-
-Master Gain: 0.7
-
-Normalize: -1dB
-
-Fade in/out: 5ms
-
-🎨 Giao diện
-
-Dark mode
-
-Nền đen
-
-Chữ trắng
-
-Ô đang ghi: đỏ nhấp nháy
-
-Ô active: xanh neon
-
-Cột đang phát: xanh lá
-
-Thanh trên cùng:
-
-BPM
-
-Step type
-
-Play / Stop
-
-Export MP3
-
-Project selector
-
-🔐 Tính năng an toàn
-
-Microphone permission handling
+Safe write (temp → rename)
 
 Crash recovery
 
-Safe file write
+Load/save project JSON
 
-Không ghi vào Program Files
+Sample IO
 
-Không yêu cầu internet
+exportManager.js
 
-📌 Tóm tắt
+OfflineAudioContext render
 
-BeatForge là:
+Render mặc định 8 bars
 
-Mini DAW dạng loop sequencer
+WAV encode JS
 
-Thu âm trực tiếp
+Gọi Rust backend encode MP3 (192kbps)
 
-Hoạt động hoàn toàn offline
+Backend (Rust + Tauri v2)
+src-tauri/
+ ├ Cargo.toml
+ ├ build.rs
+ ├ tauri.conf.json
+ ├ icons/
+ ├ src/
+ │   ├ main.rs
+ │   ├ ffmpeg.rs
+main.rs
 
-Đóng gói thành file .exe
+Expose Tauri commands:
 
-Không phụ thuộc dịch vụ bên thứ ba
+save_project
 
-Thiết kế tối ưu cho cá nhân sử dụng và lưu trữ riêng biệt trên từng máy.
+load_project
+
+write_sample
+
+read_sample
+
+delete_sample
+
+export_mp3
+
+ffmpeg.rs
+
+Wrapper async gọi:
+
+ffmpeg -codec:a libmp3lame -b:a 192k
+Luồng hoạt động
+
+Người dùng nhấn vào ô (3x3)
+
+Ghi âm bắt đầu
+
+Nhấn lại → dừng ghi
+
+Sample được:
+
+Normalize -1dB
+
+Fade 5ms
+
+Clamp
+
+Scheduler chạy theo BPM
+
+Column loop kích hoạt playback
+
+Offline render khi export
+
+Rust encode MP3
+
+Thông số kỹ thuật
+
+Grid: 3x3
+
+Master gain max: 0.7
+
+Sample max duration: 60s
+
+1 recording tại 1 thời điểm
+
+Autosave enabled
+
+Crash recovery supported
+
+Offline MP3 export
+
+No cloud sync
+
+Windows only (hiện tại)
+
+Thư mục dữ liệu
+
+Windows AppData:
+
+%APPDATA%/BeatForge/projects/
+
+Mỗi project chứa:
+
+project.json
+
+samples/
+
+autosave.json
+
+Yêu cầu môi trường phát triển
+
+Node LTS
+
+Rust stable (MSVC)
+
+Visual Studio C++ Build Tools
+
+WebView2
+
+Chạy dev
+npm install
+npx tauri dev
+Build production
+npx tauri build
+
+File exe sẽ nằm trong:
+
+src-tauri/target/release/bundle/
+Quy tắc phát triển thêm (RẤT QUAN TRỌNG)
+
+Bất kỳ AI/dev nào mở rộng BeatForge phải tuân thủ:
+
+Không thay đổi cấu trúc thư mục
+
+Không gộp file frontend
+
+Không phá scheduler look-ahead
+
+Không bỏ normalize -1dB
+
+Không bỏ master gain cap 0.7
+
+Không thêm dependency cloud
+
+Không làm thay đổi project file format cũ
+
+Nếu cần mở rộng:
+
+Thêm module mới riêng
+
+Không sửa module cũ trừ khi refactor có kiểm soát
+
+Giữ backward compatibility project.json
+
+Roadmap tương lai
+
+Undo/Redo stack
+
+MIDI input support
+
+Waveform preview per-cell
+
+Per-cell pitch control
+
+Loop length configurable
+
+Multi-pattern support
+
+Drag & drop sample import
+
+Windows installer customization
+
+Triết lý thiết kế
+
+BeatForge không hướng tới DAW phức tạp.
+Nó là công cụ sáng tạo loop nhanh, nhẹ, ổn định và offline.
+
+License
+
+Private project – chưa public license.
