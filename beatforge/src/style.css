@@ -1,0 +1,125 @@
+:root {
+  --bg: #101014;
+  --panel: #1a1a22;
+  --text: #f4f7ff;
+  --muted: #8f95ac;
+  --green: #44d27a;
+  --neon: #00ffae;
+  --danger: #ff365d;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: Inter, Segoe UI, Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #292d3d;
+  background: #141821;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-group.actions {
+  margin-left: auto;
+}
+
+label { color: var(--muted); }
+
+input, select, button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid #30384d;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+button:hover { border-color: var(--neon); cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  padding: 16px;
+}
+
+.grid {
+  grid-row: 1 / span 2;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
+.cell {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  border: 2px solid #2a2f40;
+}
+
+.cell-label { font-weight: 700; }
+.cell-state { color: var(--muted); }
+
+.cell.has-sample { border-color: #4b7bff; }
+.cell.active-step { box-shadow: 0 0 0 2px var(--green) inset; }
+.cell.cell-playing { border-color: var(--neon); }
+.cell.recording {
+  border-color: var(--danger);
+  animation: pulse 0.8s ease infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 54, 93, 0.3); }
+  100% { box-shadow: 0 0 0 10px rgba(255, 54, 93, 0); }
+}
+
+.meter-panel,
+.status-panel {
+  background: var(--panel);
+  border: 1px solid #30384d;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.meter-track {
+  height: 18px;
+  background: #0f1117;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.meter-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #2ee48c 0%, #ffe000 60%, #ff4d57 100%);
+  transition: width 50ms linear;
+}
+
+#statusLog {
+  white-space: pre-wrap;
+  margin: 0;
+  color: #cfd8ff;
+  font-size: 12px;
+  max-height: 280px;
+  overflow: auto;
+}

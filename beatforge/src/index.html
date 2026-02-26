@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BeatForge</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="control-group">
+        <label for="projectSelect">Project</label>
+        <select id="projectSelect"></select>
+        <button id="newProjectBtn">New</button>
+      </div>
+      <div class="control-group">
+        <label for="bpmInput">BPM</label>
+        <input id="bpmInput" type="number" min="20" max="300" value="120" />
+      </div>
+      <div class="control-group">
+        <label for="subdivisionSelect">Subdivision</label>
+        <select id="subdivisionSelect">
+          <option value="1">1/4</option>
+          <option value="2">1/8</option>
+          <option value="4" selected>1/16</option>
+        </select>
+      </div>
+      <div class="control-group actions">
+        <button id="playBtn">Play</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="exportBtn">Export MP3</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="grid" class="grid" aria-label="3 by 3 sequencer grid"></section>
+      <section class="meter-panel">
+        <h2>Peak Meter</h2>
+        <div class="meter-track">
+          <div id="peakMeter" class="meter-bar"></div>
+        </div>
+      </section>
+      <section class="status-panel">
+        <h2>Status</h2>
+        <pre id="statusLog"></pre>
+      </section>
+    </main>
+
+    <template id="cellTemplate">
+      <button class="cell" type="button">
+        <span class="cell-label"></span>
+        <span class="cell-state">Empty</span>
+      </button>
+    </template>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
