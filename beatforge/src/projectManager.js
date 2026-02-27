@@ -1,10 +1,14 @@
 import { SequencerState } from "./sequencerState.js";
+import { invoke } from "@tauri-apps/api/core";
 
-const tauriInvoke = async (cmd, args = {}) => {
-  const invoker = window.__TAURI__?.core?.invoke;
-  if (!invoker) throw new Error("Tauri runtime not available");
-  return invoker(cmd, args);
-};
+const tauriInvoke = (cmd, args = {}) => invoke(cmd, args);
+// const tauriInvoke = async (cmd, args = {}) => {
+//   if (!window.__TAURI__ || !window.__TAURI__.core) {
+//     throw new Error("Tauri runtime not available. Make sure you run with 'npx tauri dev'");
+//   }
+
+//   return window.__TAURI__.core.invoke(cmd, args);
+// };
 
 export class ProjectManager {
   constructor() {
@@ -50,7 +54,10 @@ export class ProjectManager {
 
   async renameProject(project, newName) {
     await tauriInvoke("rename_project", { project, newName });
-    if (this.currentProject === project) this.currentProject = newName;
+
+    if (this.currentProject === project) {
+      this.currentProject = newName;
+    }
   }
 
   async loadProject(project) {
