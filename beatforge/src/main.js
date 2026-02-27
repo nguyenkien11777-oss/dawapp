@@ -31,6 +31,7 @@ let isMasterRecording = false;
 let transportTimer = null;
 let elapsed = 0;
 let activeRecRow = null;
+let inFlightRecordingPersist = false;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
   const { userRows, presetRows } = projectManager.state.sequencer;
@@ -50,13 +51,18 @@ async function persistRecordedBuffer(rowIndex, buffer) {
   const row = projectManager.state.sequencer.userRows[rowIndex];
   if (!row) return;
 
-  const wav = encodeWav(buffer);
-  const samplePath = await projectManager.writeRecordingWav(rowIndex, wav);
-  sampleBuffers.set(samplePath, buffer);
-  row.samplePath = samplePath;
-  projectManager.markDirty();
-  updateHeader();
-  await renderSequencer();
+  inFlightRecordingPersist = true;
+  try {
+    const wav = encodeWav(buffer);
+    const samplePath = await projectManager.writeRecordingWav(rowIndex, wav);
+    sampleBuffers.set(samplePath, buffer);
+    row.samplePath = samplePath;
+    projectManager.markDirty();
+    updateHeader();
+    await renderSequencer();
+  } finally {
+    inFlightRecordingPersist = false;
+  }
 }
 
 recorder.on("record-start", async ({ cellIndex }) => {
@@ -66,8 +72,13 @@ recorder.on("record-start", async ({ cellIndex }) => {
 
 recorder.on("record-stop", async ({ cellIndex, buffer }) => {
   activeRecRow = null;
-  await persistRecordedBuffer(cellIndex, buffer);
-  ui.log(`Recorded REC ${Number(cellIndex) + 1}`);
+  try {
+    await persistRecordedBuffer(cellIndex, buffer);
+    ui.log(`Recorded REC ${Number(cellIndex) + 1}`);
+  } catch (error) {
+    await renderSequencer();
+    ui.log(`REC persist failed: ${error?.message ?? "unknown error"}`);
+  }
 });
 
 function isTransportActive() {
@@ -196,7 +207,7 @@ backBtn.onclick = async () => {
 };
 
 saveBtn.onclick = async () => {
-  if (isMasterRecording || recorder.isRecording) return ui.log("Cannot save while recording.");
+  if (isMasterRecording || recorder.isRecording || inFlightRecordingPersist) return ui.log("Cannot save while recording or persisting.");
   await projectManager.saveProject();
   updateHeader();
   ui.log("Project saved.");
