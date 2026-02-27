@@ -1,9 +1,10 @@
 import { AudioEngine } from "./audioEngine.js";
 import { Scheduler } from "./scheduler.js";
 import { ProjectManager } from "./projectManager.js";
-import { ExportManager } from "./exportManager.js";
+import { ExportManager, encodeWav } from "./exportManager.js";
 import { UI } from "./ui.js";
 import { Dashboard } from "./dashboard.js";
+import { Recorder } from "./recorder.js";
 import { DEFAULT_BPM, DEFAULT_SUBDIVISION } from "./constants.js";
 
 const bpmInput = document.getElementById("bpmInput");
@@ -24,10 +25,12 @@ const projectManager = new ProjectManager();
 const sampleBuffers = new Map();
 const exportManager = new ExportManager(audioEngine, projectManager, sampleBuffers);
 const dashboard = new Dashboard(projectManager, ui);
+const recorder = new Recorder(audioEngine);
 
 let isMasterRecording = false;
 let transportTimer = null;
 let elapsed = 0;
+let activeRecRow = null;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
   const { userRows, presetRows } = projectManager.state.sequencer;
@@ -40,6 +43,31 @@ const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
     audioEngine.playBuffer({ buffer: sampleBuffers.get(row.sound), gainValue: row.volume, when });
   }
   ui.highlightStep(step);
+});
+
+async function persistRecordedBuffer(rowIndex, buffer) {
+  if (!buffer || rowIndex == null || !projectManager.currentProject) return;
+  const row = projectManager.state.sequencer.userRows[rowIndex];
+  if (!row) return;
+
+  const wav = encodeWav(buffer);
+  const samplePath = await projectManager.writeRecordingWav(rowIndex, wav);
+  sampleBuffers.set(samplePath, buffer);
+  row.samplePath = samplePath;
+  projectManager.markDirty();
+  updateHeader();
+  await renderSequencer();
+}
+
+recorder.on("record-start", async ({ cellIndex }) => {
+  activeRecRow = cellIndex;
+  await renderSequencer();
+});
+
+recorder.on("record-stop", async ({ cellIndex, buffer }) => {
+  activeRecRow = null;
+  await persistRecordedBuffer(cellIndex, buffer);
+  ui.log(`Recorded REC ${Number(cellIndex) + 1}`);
 });
 
 function isTransportActive() {
@@ -84,8 +112,27 @@ async function renderSequencer() {
   scheduler.updateTempo({ bpm: state.bpm, subdivision: state.subdivision });
 
   ui.renderRows(state.userRows, ui.recRows, "rec", {
+    recordingRow: activeRecRow,
+    lockRec: isTransportActive(),
+    onRec: async (rowIndex) => {
+      if (!projectManager.currentProject) return;
+      if (isTransportActive()) return;
+      if (recorder.isRecording && activeRecRow !== rowIndex) return;
+      try {
+        if (recorder.isRecording && activeRecRow === rowIndex) {
+          await recorder.stop();
+          return;
+        }
+        await audioEngine.ensureRunning();
+        await recorder.start(rowIndex);
+      } catch (error) {
+        activeRecRow = null;
+        await renderSequencer();
+        ui.log(`REC failed: ${error?.message ?? "unknown error"}`);
+      }
+    },
     onStep: (_, row, step) => { state.userRows[row].steps[step] = !state.userRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
-    onDelete: (_, row) => { if (isTransportActive()) return; state.userRows.splice(row, 1); state.userRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
+    onDelete: (_, row) => { if (isTransportActive() || recorder.isRecording) return; state.userRows.splice(row, 1); state.userRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
     onVolume: (_, row, value) => { state.userRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
     onMute: (_, row) => { state.userRows[row].mute = !state.userRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); }
   });
@@ -105,6 +152,7 @@ async function renderSequencer() {
 
 async function openProject(name) {
   await projectManager.loadProject(name);
+  activeRecRow = null;
   updateHeader();
   await renderSequencer();
   ui.showSequencer();
@@ -141,14 +189,14 @@ newProjectBtn.onclick = async () => {
 };
 
 backBtn.onclick = async () => {
-  if (isMasterRecording) return;
+  if (isMasterRecording || recorder.isRecording) return;
   if (projectManager.dirty && !confirm("Unsaved changes. Exit project?")) return;
   ui.showDashboard();
   await refreshDashboard();
 };
 
 saveBtn.onclick = async () => {
-  if (isMasterRecording) return ui.log("Cannot save while master recording.");
+  if (isMasterRecording || recorder.isRecording) return ui.log("Cannot save while recording.");
   await projectManager.saveProject();
   updateHeader();
   ui.log("Project saved.");

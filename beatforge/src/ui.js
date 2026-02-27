@@ -52,7 +52,12 @@ export class UI {
       controls.querySelector("[data-del]").onclick = () => opts.onDelete?.(type, rowIndex);
       controls.querySelector("[data-vol]").oninput = (e) => opts.onVolume?.(type, rowIndex, Number(e.target.value));
       controls.querySelector("[data-mute]").onclick = () => opts.onMute?.(type, rowIndex);
-      if (type === "rec") controls.querySelector("[data-rec]").onclick = () => opts.onRec?.(rowIndex);
+      if (type === "rec") {
+        const recBtn = controls.querySelector("[data-rec]");
+        recBtn.textContent = opts.recordingRow === rowIndex ? "STOP REC" : "REC";
+        recBtn.disabled = Boolean(opts.lockRec) || (opts.recordingRow !== null && opts.recordingRow !== rowIndex);
+        recBtn.onclick = () => opts.onRec?.(rowIndex);
+      }
       if (type === "preset") {
         const select = controls.querySelector("[data-sound]");
         (opts.samples ?? []).forEach((sample) => {

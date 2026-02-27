@@ -86,6 +86,14 @@ export class ProjectManager {
     });
   }
 
+  async writeRecordingWav(row, wavBytes) {
+    return tauriInvoke("write_recording_wav", {
+      project: this.currentProject,
+      row,
+      bytes: Array.from(wavBytes)
+    });
+  }
+
   async listDrumSamples() {
     return tauriInvoke("list_drum_samples");
   }

@@ -114,6 +114,14 @@ fn duplicate_project(source: String, target: String) -> Result<(), String> {
     Ok(())
 }
 
+
+#[tauri::command]
+fn write_recording_wav(project: String, row: usize, bytes: Vec<u8>) -> Result<String, String> {
+    let path = project_dir(&project)?.join("recordings").join(format!("rec_{row}.wav"));
+    safe_write(&path, &bytes)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 fn write_master_wav(project: String, bytes: Vec<u8>) -> Result<String, String> {
     let path = project_dir(&project)?.join("master.wav");
@@ -175,6 +183,7 @@ fn main() {
             rename_project,
             delete_project,
             duplicate_project,
+            write_recording_wav,
             write_master_wav,
             export_mp3_from_master,
             list_drum_samples,
