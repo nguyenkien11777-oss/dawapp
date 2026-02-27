@@ -3,55 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BeatForge</title>
+    <title>BeatForge v2</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="control-group">
-        <label for="projectSelect">Project</label>
-        <select id="projectSelect"></select>
-        <button id="newProjectBtn">New</button>
-      </div>
-      <div class="control-group">
-        <label for="bpmInput">BPM</label>
-        <input id="bpmInput" type="number" min="20" max="300" value="120" />
-      </div>
-      <div class="control-group">
-        <label for="subdivisionSelect">Subdivision</label>
-        <select id="subdivisionSelect">
-          <option value="1">1/4</option>
-          <option value="2">1/8</option>
-          <option value="4" selected>1/16</option>
-        </select>
-      </div>
-      <div class="control-group actions">
-        <button id="playBtn">Play</button>
-        <button id="stopBtn" disabled>Stop</button>
-        <button id="exportBtn">Export MP3</button>
-      </div>
-    </header>
+    <section id="dashboard">
+      <header class="dash-head">
+        <h1>BeatForge Projects</h1>
+        <button id="newProjectBtn">New Project</button>
+      </header>
+      <div id="projectCards" class="cards"></div>
+    </section>
 
-    <main>
-      <section id="grid" class="grid" aria-label="3 by 3 sequencer grid"></section>
-      <section class="meter-panel">
-        <h2>Peak Meter</h2>
-        <div class="meter-track">
-          <div id="peakMeter" class="meter-bar"></div>
+    <section id="sequencerScreen" hidden>
+      <header class="topbar">
+        <div class="menu-left"><button>File</button><button>Project</button></div>
+        <div class="head-right">
+          <strong id="projectTitle">No Project</strong>
+          <button id="saveBtn">Save</button>
+          <button id="backBtn">Dashboard</button>
         </div>
-      </section>
-      <section class="status-panel">
-        <h2>Status</h2>
-        <pre id="statusLog"></pre>
-      </section>
-    </main>
+      </header>
 
-    <template id="cellTemplate">
-      <button class="cell" type="button">
-        <span class="cell-label"></span>
-        <span class="cell-state">Empty</span>
-      </button>
-    </template>
+      <div class="tempo-row">
+        <label>Subdivision
+          <select id="subdivisionSelect">
+            <option>1/4</option>
+            <option>1/8</option>
+            <option selected>1/16</option>
+            <option>1/32</option>
+          </select>
+        </label>
+        <label>BPM <input id="bpmInput" type="range" min="20" max="300" value="120" /></label>
+      </div>
+
+      <main>
+        <h3>REC Rows</h3>
+        <button id="addRecRowBtn">+ REC Row</button>
+        <div id="recRows" class="rows"></div>
+
+        <h3>Preset Drum Rack</h3>
+        <button id="addPresetRowBtn">+ Preset Row</button>
+        <div id="presetRows" class="rows"></div>
+      </main>
+
+      <footer class="transport">
+        <button id="playBtn">PLAY</button>
+        <button id="recordMasterBtn">RECORD MASTER</button>
+        <span id="transportTimer">00:00</span>
+        <button id="exportBtn">Export MP3</button>
+      </footer>
+
+      <pre id="statusLog"></pre>
+    </section>
 
     <script type="module" src="./main.js"></script>
   </body>

@@ -1,3 +1,5 @@
+import { MAX_MASTER_GAIN, STEPS, SUBDIVISIONS } from "./constants.js";
+
 const tauriInvoke = async (cmd, args = {}) => {
   const invoker = window.__TAURI__?.core?.invoke;
   if (!invoker) throw new Error("Tauri runtime not available");
@@ -9,9 +11,7 @@ function interleave(buffer) {
   const length = buffer.length * channels;
   const result = new Float32Array(length);
   for (let i = 0; i < buffer.length; i += 1) {
-    for (let c = 0; c < channels; c += 1) {
-      result[i * channels + c] = buffer.getChannelData(c)[i];
-    }
+    for (let c = 0; c < channels; c += 1) result[i * channels + c] = buffer.getChannelData(c)[i];
   }
   return result;
 }
@@ -25,7 +25,7 @@ function floatTo16BitPCM(float32) {
   return new Uint8Array(output.buffer);
 }
 
-function encodeWav(audioBuffer) {
+export function encodeWav(audioBuffer) {
   const interleaved = interleave(audioBuffer);
   const pcm = floatTo16BitPCM(interleaved);
   const channels = audioBuffer.numberOfChannels;
@@ -34,12 +34,7 @@ function encodeWav(audioBuffer) {
   const byteRate = sampleRate * blockAlign;
   const header = new ArrayBuffer(44);
   const view = new DataView(header);
-
-  const writeString = (offset, value) => {
-    for (let i = 0; i < value.length; i += 1) {
-      view.setUint8(offset + i, value.charCodeAt(i));
-    }
-  };
+  const writeString = (offset, value) => { for (let i = 0; i < value.length; i += 1) view.setUint8(offset + i, value.charCodeAt(i)); };
 
   writeString(0, "RIFF");
   view.setUint32(4, 36 + pcm.length, true);
@@ -62,55 +57,50 @@ function encodeWav(audioBuffer) {
 }
 
 export class ExportManager {
-  constructor(audioEngine, projectManager) {
+  constructor(audioEngine, projectManager, sampleBuffers) {
     this.audioEngine = audioEngine;
     this.projectManager = projectManager;
+    this.sampleBuffers = sampleBuffers;
   }
 
-  async renderLoopCycle() {
-    const { bpm, subdivision } = this.projectManager.state;
-    const stepDuration = (60 / bpm) / subdivision;
-    const totalDuration = stepDuration * 3;
-    const sampleRate = this.audioEngine.sampleRate;
-    const frameCount = Math.ceil(totalDuration * sampleRate);
-
-    const offline = new OfflineAudioContext(2, frameCount, sampleRate);
+  async renderMasterWav() {
+    const { bpm, subdivision, userRows, presetRows } = this.projectManager.state.sequencer;
+    const stepDuration = (60 / bpm) / SUBDIVISIONS[subdivision];
+    const duration = STEPS * stepDuration;
+    const sr = this.audioEngine.context.sampleRate;
+    const offline = new OfflineAudioContext(2, Math.ceil(duration * sr), sr);
     const master = offline.createGain();
-    master.gain.value = 0.7;
+    master.gain.value = MAX_MASTER_GAIN;
     master.connect(offline.destination);
 
-    for (let step = 0; step < 3; step += 1) {
+    for (let step = 0; step < STEPS; step += 1) {
       const when = step * stepDuration;
-      for (let row = 0; row < 3; row += 1) {
-        const idx = row * 3 + step;
-        const cell = this.audioEngine.getCell(idx);
-        if (!cell.buffer) continue;
-
-        const source = offline.createBufferSource();
-        const gain = offline.createGain();
-        gain.gain.value = cell.gain;
-        source.buffer = cell.buffer;
-        source.connect(gain);
-        gain.connect(master);
-        source.start(when);
+      for (const row of userRows) {
+        if (row.mute || !row.steps[step] || !row.samplePath) continue;
+        const buf = this.sampleBuffers.get(row.samplePath);
+        if (!buf) continue;
+        const s = offline.createBufferSource();
+        const g = offline.createGain();
+        s.buffer = buf;
+        g.gain.value = row.volume;
+        s.connect(g); g.connect(master); s.start(when);
+      }
+      for (const row of presetRows) {
+        if (row.mute || !row.steps[step] || !row.sound) continue;
+        const buf = this.sampleBuffers.get(row.sound);
+        if (!buf) continue;
+        const s = offline.createBufferSource();
+        const g = offline.createGain();
+        s.buffer = buf;
+        g.gain.value = row.volume;
+        s.connect(g); g.connect(master); s.start(when);
       }
     }
-
-    const rendered = await offline.startRendering();
-    return encodeWav(rendered);
+    return encodeWav(await offline.startRendering());
   }
 
   async exportMp3() {
-    if (!this.projectManager.currentProject) {
-      throw new Error("Select a project before exporting.");
-    }
-    const wav = await this.renderLoopCycle();
-    const outPath = await tauriInvoke("export_mp3", {
-      project: this.projectManager.currentProject,
-      wavBytes: Array.from(wav)
-    });
+    const outPath = await tauriInvoke("export_mp3_from_master", { project: this.projectManager.currentProject });
     return outPath;
   }
 }
-
-export { encodeWav };

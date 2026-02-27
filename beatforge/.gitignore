@@ -3,3 +3,6 @@ dist/
 *.log
 src-tauri/target/
 .DS_Store
+assets/drums/*.wav
+assets/drums/*.mp3
+assets/drums/*.ogg

@@ -1,5 +1,4 @@
-const LOOKAHEAD_MS = 25;
-const SCHEDULE_AHEAD_TIME = 0.1;
+import { LOOKAHEAD_MS, SCHEDULE_AHEAD_TIME, STEPS, SUBDIVISIONS } from "./constants.js";
 
 export class Scheduler {
   constructor(audioEngine, onStep) {
@@ -9,17 +8,18 @@ export class Scheduler {
     this.currentStep = 0;
     this.nextStepTime = 0;
     this.bpm = 120;
-    this.subdivision = 4;
+    this.subdivision = "1/16";
     this.isPlaying = false;
   }
 
   updateTempo({ bpm, subdivision }) {
-    this.bpm = Math.max(20, Math.min(300, bpm));
-    this.subdivision = subdivision;
+    this.bpm = Math.max(20, Math.min(300, Number(bpm) || 120));
+    if (SUBDIVISIONS[subdivision]) this.subdivision = subdivision;
   }
 
   get stepDuration() {
-    return (60 / this.bpm) / this.subdivision;
+    const secondsPerBeat = 60 / this.bpm;
+    return secondsPerBeat / SUBDIVISIONS[this.subdivision];
   }
 
   start() {
@@ -41,14 +41,11 @@ export class Scheduler {
 
   tick() {
     if (!this.isPlaying) return;
-
     while (this.nextStepTime < this.audioEngine.context.currentTime + SCHEDULE_AHEAD_TIME) {
-      const column = this.currentStep % 3;
-      this.onStep({ step: this.currentStep, column, when: this.nextStepTime });
+      this.onStep({ step: this.currentStep, when: this.nextStepTime });
       this.nextStepTime += this.stepDuration;
-      this.currentStep += 1;
+      this.currentStep = (this.currentStep + 1) % STEPS;
     }
-
     this.timerId = window.setTimeout(() => this.tick(), LOOKAHEAD_MS);
   }
 }

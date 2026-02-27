@@ -1,155 +1,231 @@
 import { AudioEngine } from "./audioEngine.js";
-import { Recorder } from "./recorder.js";
 import { Scheduler } from "./scheduler.js";
 import { ProjectManager } from "./projectManager.js";
-import { ExportManager, encodeWav } from "./exportManager.js";
+import { ExportManager } from "./exportManager.js";
 import { UI } from "./ui.js";
+import { Dashboard } from "./dashboard.js";
+import { DEFAULT_BPM, DEFAULT_SUBDIVISION } from "./constants.js";
 
 const bpmInput = document.getElementById("bpmInput");
 const subdivisionSelect = document.getElementById("subdivisionSelect");
 const playBtn = document.getElementById("playBtn");
-const stopBtn = document.getElementById("stopBtn");
+const recordMasterBtn = document.getElementById("recordMasterBtn");
+const addRecRowBtn = document.getElementById("addRecRowBtn");
+const addPresetRowBtn = document.getElementById("addPresetRowBtn");
+const backBtn = document.getElementById("backBtn");
+const saveBtn = document.getElementById("saveBtn");
 const exportBtn = document.getElementById("exportBtn");
-const projectSelect = document.getElementById("projectSelect");
 const newProjectBtn = document.getElementById("newProjectBtn");
+const projectTitle = document.getElementById("projectTitle");
 
 const audioEngine = new AudioEngine();
-const recorder = new Recorder(audioEngine);
 const ui = new UI();
-const projectManager = new ProjectManager(audioEngine);
-const exportManager = new ExportManager(audioEngine, projectManager);
+const projectManager = new ProjectManager();
+const sampleBuffers = new Map();
+const exportManager = new ExportManager(audioEngine, projectManager, sampleBuffers);
+const dashboard = new Dashboard(projectManager, ui);
 
-const scheduler = new Scheduler(audioEngine, ({ column, when }) => {
-  for (let row = 0; row < 3; row += 1) {
-    const index = row * 3 + column;
-    if (audioEngine.getCell(index).buffer) {
-      audioEngine.scheduleCell(index, when, 1);
-      ui.setCellState(index, {
-        hasSample: true,
-        text: "Playing",
-        playing: true
-      });
-      setTimeout(() => {
-        ui.setCellState(index, {
-          hasSample: true,
-          text: "Ready",
-          playing: false
-        });
-      }, 120);
-    }
+let isMasterRecording = false;
+let transportTimer = null;
+let elapsed = 0;
+
+const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
+  const { userRows, presetRows } = projectManager.state.sequencer;
+  for (const row of userRows) {
+    if (!row.steps[step] || row.mute || !row.samplePath) continue;
+    audioEngine.playBuffer({ buffer: sampleBuffers.get(row.samplePath), gainValue: row.volume, when });
   }
-  ui.highlightColumn(column);
+  for (const row of presetRows) {
+    if (!row.steps[step] || row.mute || !row.sound) continue;
+    audioEngine.playBuffer({ buffer: sampleBuffers.get(row.sound), gainValue: row.volume, when });
+  }
+  ui.highlightStep(step);
 });
 
-const syncTempo = () => {
-  const bpm = Number(bpmInput.value);
-  const subdivision = Number(subdivisionSelect.value);
-  scheduler.updateTempo({ bpm, subdivision });
-  projectManager.setTransport({ bpm, subdivision });
-  projectManager.autosave().catch((err) => ui.log(`Autosave failed: ${err.message}`));
-};
+function isTransportActive() {
+  return scheduler.isPlaying || isMasterRecording;
+}
 
-const serializeBufferToWav = (buffer) => encodeWav(buffer);
+function syncTransportLocks() {
+  const locked = isTransportActive();
+  addRecRowBtn.disabled = locked;
+  addPresetRowBtn.disabled = locked;
+}
 
-async function refreshProjects(selectName = null) {
-  const projects = await projectManager.listProjects();
-  ui.setProjectOptions(projects);
-  if (projects.length === 0) {
-    const created = await projectManager.createProject("project_1");
-    ui.log(`Created project ${created}`);
-    return refreshProjects(created);
+function updateHeader() {
+  const dirty = projectManager.dirty ? " *" : "";
+  projectTitle.textContent = `${projectManager.currentProject ?? "No Project"}${dirty}`;
+}
+
+async function loadSamplesForState() {
+  const sampleList = await projectManager.listDrumSamples();
+  for (const sample of sampleList) {
+    if (sampleBuffers.has(sample)) continue;
+    const bytes = await projectManager.readFileBytes(sample);
+    const prepared = await audioEngine.decodeAndPrepare(Uint8Array.from(bytes).buffer);
+    sampleBuffers.set(sample, prepared);
   }
-  const selected = selectName ?? projects[0];
-  projectSelect.value = selected;
-  const state = await projectManager.loadProject(selected);
-  bpmInput.value = String(state.bpm ?? 120);
-  subdivisionSelect.value = String(state.subdivision ?? 4);
-  syncTempo();
+  for (const row of projectManager.state.sequencer.userRows) {
+    if (!row.samplePath || sampleBuffers.has(row.samplePath)) continue;
+    try {
+      const bytes = await projectManager.readFileBytes(row.samplePath);
+      const prepared = await audioEngine.decodeAndPrepare(Uint8Array.from(bytes).buffer);
+      sampleBuffers.set(row.samplePath, prepared);
+    } catch (_) {}
+  }
+  return sampleList;
+}
 
-  state.cells.forEach((cell) => {
-    ui.setCellState(cell.id, {
-      hasSample: Boolean(cell.samplePath),
-      text: cell.samplePath ? "Ready" : "Empty"
-    });
+async function renderSequencer() {
+  const state = projectManager.state.sequencer;
+  const samples = await loadSamplesForState();
+  bpmInput.value = String(state.bpm ?? DEFAULT_BPM);
+  subdivisionSelect.value = state.subdivision ?? DEFAULT_SUBDIVISION;
+  scheduler.updateTempo({ bpm: state.bpm, subdivision: state.subdivision });
+
+  ui.renderRows(state.userRows, ui.recRows, "rec", {
+    onStep: (_, row, step) => { state.userRows[row].steps[step] = !state.userRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
+    onDelete: (_, row) => { if (isTransportActive()) return; state.userRows.splice(row, 1); state.userRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
+    onVolume: (_, row, value) => { state.userRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
+    onMute: (_, row) => { state.userRows[row].mute = !state.userRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); }
+  });
+
+  ui.renderRows(state.presetRows, ui.presetRows, "preset", {
+    samples,
+    lockSoundChange: isTransportActive(),
+    onStep: (_, row, step) => { state.presetRows[row].steps[step] = !state.presetRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
+    onDelete: (_, row) => { if (isTransportActive()) return; state.presetRows.splice(row, 1); state.presetRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
+    onVolume: (_, row, value) => { state.presetRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
+    onMute: (_, row) => { state.presetRows[row].mute = !state.presetRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); },
+    onSound: (row, sound) => { if (isTransportActive()) return; state.presetRows[row].sound = sound || null; projectManager.markDirty(); updateHeader(); }
+  });
+
+  syncTransportLocks();
+}
+
+async function openProject(name) {
+  await projectManager.loadProject(name);
+  updateHeader();
+  await renderSequencer();
+  ui.showSequencer();
+}
+
+async function refreshDashboard() {
+  await dashboard.refresh({
+    open: openProject,
+    rename: async (name) => {
+      const newName = prompt("Rename project", name);
+      if (!newName || newName === name) return;
+      await projectManager.renameProject(name, newName);
+      await refreshDashboard();
+    },
+    duplicate: async (name) => {
+      const target = prompt("Duplicate project as", `${name}_copy`);
+      if (!target) return;
+      await projectManager.duplicateProject(name, target);
+      await refreshDashboard();
+    },
+    delete: async (name) => {
+      if (!confirm(`Delete ${name}?`)) return;
+      await projectManager.deleteProject(name);
+      await refreshDashboard();
+    }
   });
 }
 
-ui.bindCellClick(async (index) => {
-  try {
-    await audioEngine.ensureRunning();
-    if (!recorder.isRecording) {
-      ui.setCellState(index, { recording: true, text: "Recording...", hasSample: false });
-      recorder.start(index);
-      return;
-    }
-
-    const buffer = await recorder.stop();
-    const wav = serializeBufferToWav(buffer);
-    audioEngine.setCellBuffer(index, buffer);
-    const path = await projectManager.writeCellWav(index, wav);
-    audioEngine.getCell(index).path = path;
-    ui.setCellState(index, { hasSample: true, text: "Ready", recording: false });
-    ui.log(`Recorded cell ${index + 1}`);
-  } catch (error) {
-    ui.log(`Record error: ${error.message}`);
-    ui.setCellState(index, { hasSample: false, text: "Empty", recording: false });
-  }
-});
-
-playBtn.addEventListener("click", async () => {
-  await audioEngine.ensureRunning();
-  syncTempo();
-  scheduler.start();
-  playBtn.disabled = true;
-  stopBtn.disabled = false;
-  ui.log("Playback started.");
-});
-
-stopBtn.addEventListener("click", () => {
-  scheduler.stop();
-  playBtn.disabled = false;
-  stopBtn.disabled = true;
-  ui.highlightColumn(-1);
-  ui.log("Playback stopped.");
-});
-
-bpmInput.addEventListener("change", syncTempo);
-subdivisionSelect.addEventListener("change", syncTempo);
-
-newProjectBtn.addEventListener("click", async () => {
+newProjectBtn.onclick = async () => {
   const name = prompt("New project name", `project_${Date.now()}`);
   if (!name) return;
   await projectManager.createProject(name);
-  await refreshProjects(name);
-  ui.log(`Project created: ${name}`);
-});
+  await openProject(name);
+};
 
-projectSelect.addEventListener("change", async () => {
-  await refreshProjects(projectSelect.value);
-  ui.log(`Loaded project: ${projectSelect.value}`);
-});
+backBtn.onclick = async () => {
+  if (isMasterRecording) return;
+  if (projectManager.dirty && !confirm("Unsaved changes. Exit project?")) return;
+  ui.showDashboard();
+  await refreshDashboard();
+};
 
-exportBtn.addEventListener("click", async () => {
-  try {
-    const path = await exportManager.exportMp3();
-    await projectManager.saveProject();
-    ui.log(`Exported MP3: ${path}`);
-  } catch (error) {
-    ui.log(`Export failed: ${error.message}`);
+saveBtn.onclick = async () => {
+  if (isMasterRecording) return ui.log("Cannot save while master recording.");
+  await projectManager.saveProject();
+  updateHeader();
+  ui.log("Project saved.");
+};
+
+addRecRowBtn.onclick = async () => {
+  if (isTransportActive()) return;
+  if (projectManager.state.addRecRow()) { projectManager.markDirty(); updateHeader(); await renderSequencer(); }
+};
+addPresetRowBtn.onclick = async () => {
+  if (isTransportActive()) return;
+  if (projectManager.state.addPresetRow()) { projectManager.markDirty(); updateHeader(); await renderSequencer(); }
+};
+
+bpmInput.oninput = () => {
+  const bpm = Number(bpmInput.value);
+  const subdivision = subdivisionSelect.value;
+  projectManager.state.setTempo(bpm, subdivision);
+  scheduler.updateTempo({ bpm, subdivision });
+  projectManager.markDirty();
+  updateHeader();
+};
+
+subdivisionSelect.onchange = () => {
+  const bpm = Number(bpmInput.value);
+  const subdivision = subdivisionSelect.value;
+  projectManager.state.setTempo(bpm, subdivision);
+  scheduler.updateTempo({ bpm, subdivision });
+  projectManager.markDirty();
+  updateHeader();
+};
+
+playBtn.onclick = async () => {
+  await audioEngine.ensureRunning();
+  if (!scheduler.isPlaying) {
+    scheduler.start();
+    playBtn.textContent = "STOP";
+  } else {
+    scheduler.stop();
+    playBtn.textContent = "PLAY";
+    ui.highlightStep(-1);
   }
-});
+  syncTransportLocks();
+};
 
-function monitorPeak() {
-  ui.updatePeak(audioEngine.getPeakLevel());
-  requestAnimationFrame(monitorPeak);
-}
+recordMasterBtn.onclick = async () => {
+  await audioEngine.ensureRunning();
+  if (!isMasterRecording) {
+    isMasterRecording = true;
+    if (!scheduler.isPlaying) scheduler.start();
+    playBtn.textContent = "STOP";
+    recordMasterBtn.textContent = "STOP RECORD";
+    recordMasterBtn.classList.add("recording");
+    elapsed = 0;
+    ui.setTimer(0);
+    transportTimer = setInterval(() => { elapsed += 1; ui.setTimer(elapsed); }, 1000);
+  } else {
+    isMasterRecording = false;
+    recordMasterBtn.textContent = "RECORD MASTER";
+    recordMasterBtn.classList.remove("recording");
+    clearInterval(transportTimer);
+    ui.setTimer(0);
+    const wav = await exportManager.renderMasterWav();
+    await projectManager.writeMasterWav(wav);
+    projectManager.state.render.hasMasterWav = true;
+    projectManager.markDirty();
+    updateHeader();
+  }
+  syncTransportLocks();
+};
+
+exportBtn.onclick = async () => {
+  const path = await exportManager.exportMp3();
+  ui.log(`Exported MP3: ${path}`);
+};
 
 (async () => {
-  try {
-    await refreshProjects();
-    monitorPeak();
-    ui.log("BeatForge ready.");
-  } catch (error) {
-    ui.log(`Startup failure: ${error.message}`);
-  }
+  ui.showDashboard();
+  await refreshDashboard();
 })();
