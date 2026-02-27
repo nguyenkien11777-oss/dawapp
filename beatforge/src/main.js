@@ -27,7 +27,13 @@ const exportManager = new ExportManager(audioEngine, projectManager, sampleBuffe
 const dashboard = new Dashboard(projectManager, ui);
 const recorder = new Recorder(audioEngine);
 
-let isMasterRecording = false;
+const TRANSPORT_STATE = {
+  IDLE: "idle",
+  PLAYING: "playing",
+  MASTER_RECORDING: "masterRecording"
+};
+
+let transportState = TRANSPORT_STATE.IDLE;
 let transportTimer = null;
 let elapsed = 0;
 let activeRecRow = null;
@@ -82,13 +88,38 @@ recorder.on("record-stop", async ({ cellIndex, buffer }) => {
 });
 
 function isTransportActive() {
-  return scheduler.isPlaying || isMasterRecording;
+  return transportState !== TRANSPORT_STATE.IDLE;
+}
+
+function syncTransportUi() {
+  playBtn.textContent = transportState === TRANSPORT_STATE.IDLE ? "PLAY" : "STOP";
+  playBtn.disabled = transportState === TRANSPORT_STATE.MASTER_RECORDING;
+  recordMasterBtn.textContent = transportState === TRANSPORT_STATE.MASTER_RECORDING ? "STOP RECORD" : "RECORD MASTER";
+  recordMasterBtn.classList.toggle("recording", transportState === TRANSPORT_STATE.MASTER_RECORDING);
 }
 
 function syncTransportLocks() {
   const locked = isTransportActive();
   addRecRowBtn.disabled = locked;
   addPresetRowBtn.disabled = locked;
+}
+
+function transitionTransport(nextState) {
+  if (nextState === transportState) return;
+  if (transportState === TRANSPORT_STATE.MASTER_RECORDING && nextState === TRANSPORT_STATE.PLAYING) return;
+
+  if (nextState === TRANSPORT_STATE.IDLE) {
+    if (scheduler.isPlaying) scheduler.stop();
+    ui.highlightStep(-1);
+  } else if (nextState === TRANSPORT_STATE.PLAYING) {
+    if (!scheduler.isPlaying) scheduler.start();
+  } else if (nextState === TRANSPORT_STATE.MASTER_RECORDING) {
+    if (!scheduler.isPlaying) scheduler.start();
+  }
+
+  transportState = nextState;
+  syncTransportUi();
+  syncTransportLocks();
 }
 
 function updateHeader() {
@@ -200,14 +231,14 @@ newProjectBtn.onclick = async () => {
 };
 
 backBtn.onclick = async () => {
-  if (isMasterRecording || recorder.isRecording) return;
+  if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording) return;
   if (projectManager.dirty && !confirm("Unsaved changes. Exit project?")) return;
   ui.showDashboard();
   await refreshDashboard();
 };
 
 saveBtn.onclick = async () => {
-  if (isMasterRecording || recorder.isRecording || inFlightRecordingPersist) return ui.log("Cannot save while recording or persisting.");
+  if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording || inFlightRecordingPersist) return ui.log("Cannot save while recording or persisting.");
   await projectManager.saveProject();
   updateHeader();
   ui.log("Project saved.");
@@ -241,33 +272,24 @@ subdivisionSelect.onchange = () => {
 };
 
 playBtn.onclick = async () => {
+  if (transportState === TRANSPORT_STATE.MASTER_RECORDING) return;
   await audioEngine.ensureRunning();
-  if (!scheduler.isPlaying) {
-    scheduler.start();
-    playBtn.textContent = "STOP";
+  if (transportState === TRANSPORT_STATE.IDLE) {
+    transitionTransport(TRANSPORT_STATE.PLAYING);
   } else {
-    scheduler.stop();
-    playBtn.textContent = "PLAY";
-    ui.highlightStep(-1);
+    transitionTransport(TRANSPORT_STATE.IDLE);
   }
-  syncTransportLocks();
 };
 
 recordMasterBtn.onclick = async () => {
   await audioEngine.ensureRunning();
-  if (!isMasterRecording) {
-    isMasterRecording = true;
-    if (!scheduler.isPlaying) scheduler.start();
-    playBtn.textContent = "STOP";
-    recordMasterBtn.textContent = "STOP RECORD";
-    recordMasterBtn.classList.add("recording");
+  if (transportState !== TRANSPORT_STATE.MASTER_RECORDING) {
+    transitionTransport(TRANSPORT_STATE.MASTER_RECORDING);
     elapsed = 0;
     ui.setTimer(0);
+    clearInterval(transportTimer);
     transportTimer = setInterval(() => { elapsed += 1; ui.setTimer(elapsed); }, 1000);
   } else {
-    isMasterRecording = false;
-    recordMasterBtn.textContent = "RECORD MASTER";
-    recordMasterBtn.classList.remove("recording");
     clearInterval(transportTimer);
     ui.setTimer(0);
     const wav = await exportManager.renderMasterWav();
@@ -275,14 +297,17 @@ recordMasterBtn.onclick = async () => {
     projectManager.state.render.hasMasterWav = true;
     projectManager.markDirty();
     updateHeader();
+    transitionTransport(TRANSPORT_STATE.IDLE);
   }
-  syncTransportLocks();
 };
 
 exportBtn.onclick = async () => {
   const path = await exportManager.exportMp3();
   ui.log(`Exported MP3: ${path}`);
 };
+
+syncTransportUi();
+syncTransportLocks();
 
 (async () => {
   ui.showDashboard();
