@@ -442,4 +442,6 @@ syncTransportLocks();
 
   ui.showDashboard();
   await refreshDashboard();
-})();
+})().catch((err) => {
+  console.error("Startup async error:", err);
+});

@@ -94,7 +94,16 @@ export class Recorder {
   notify(event, payload) {
     for (const listener of this.listeners) {
       if (listener.event === event) {
-        listener.handler(payload);
+        try {
+          const result = listener.handler(payload);
+          if (result && typeof result.then === "function") {
+            result.catch((err) => {
+              console.error("Recorder listener async error:", err);
+            });
+          }
+        } catch (err) {
+          console.error("Recorder listener sync error:", err);
+        }
       }
     }
   }
