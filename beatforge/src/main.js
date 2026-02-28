@@ -38,6 +38,7 @@ let transportTimer = null;
 let elapsed = 0;
 let activeRecRow = null;
 let inFlightRecordingPersist = false;
+let inFlightMasterExport = false;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
   const { userRows, presetRows } = projectManager.state.sequencer;
@@ -120,6 +121,13 @@ function transitionTransport(nextState) {
   transportState = nextState;
   syncTransportUi();
   syncTransportLocks();
+}
+
+
+function clearMasterTimer() {
+  if (!transportTimer) return;
+  clearInterval(transportTimer);
+  transportTimer = null;
 }
 
 function updateHeader() {
@@ -287,17 +295,25 @@ recordMasterBtn.onclick = async () => {
     transitionTransport(TRANSPORT_STATE.MASTER_RECORDING);
     elapsed = 0;
     ui.setTimer(0);
-    clearInterval(transportTimer);
+    clearMasterTimer();
     transportTimer = setInterval(() => { elapsed += 1; ui.setTimer(elapsed); }, 1000);
   } else {
-    clearInterval(transportTimer);
+    if (inFlightMasterExport) return;
+    inFlightMasterExport = true;
+    clearMasterTimer();
     ui.setTimer(0);
-    const wav = await exportManager.renderMasterWav();
-    await projectManager.writeMasterWav(wav);
-    projectManager.state.render.hasMasterWav = true;
-    projectManager.markDirty();
-    updateHeader();
-    transitionTransport(TRANSPORT_STATE.IDLE);
+    try {
+      const wav = await exportManager.renderMasterWav();
+      await projectManager.writeMasterWav(wav);
+      projectManager.state.render.hasMasterWav = true;
+      projectManager.markDirty();
+      updateHeader();
+    } catch (error) {
+      ui.log(`Master record finalize failed: ${error?.message ?? "unknown error"}`);
+    } finally {
+      inFlightMasterExport = false;
+      transitionTransport(TRANSPORT_STATE.IDLE);
+    }
   }
 };
 
