@@ -2,13 +2,6 @@ import { SequencerState } from "./sequencerState.js";
 import { invoke } from "@tauri-apps/api/core";
 
 const tauriInvoke = (cmd, args = {}) => invoke(cmd, args);
-// const tauriInvoke = async (cmd, args = {}) => {
-//   if (!window.__TAURI__ || !window.__TAURI__.core) {
-//     throw new Error("Tauri runtime not available. Make sure you run with 'npx tauri dev'");
-//   }
-
-//   return window.__TAURI__.core.invoke(cmd, args);
-// };
 
 export class ProjectManager {
   constructor() {
@@ -100,5 +93,12 @@ export class ProjectManager {
 
   async readFileBytes(path) {
     return tauriInvoke("read_file_bytes", { path });
+  }
+
+  async readProjectFileBytes(path) {
+    return tauriInvoke("read_project_file_bytes", {
+      project: this.currentProject,
+      path
+    });
   }
 }

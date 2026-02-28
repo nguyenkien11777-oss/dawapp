@@ -1,3 +1,4 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AudioEngine } from "./audioEngine.js";
 import { Scheduler } from "./scheduler.js";
 import { ProjectManager } from "./projectManager.js";
@@ -6,6 +7,8 @@ import { UI } from "./ui.js";
 import { Dashboard } from "./dashboard.js";
 import { Recorder } from "./recorder.js";
 import { DEFAULT_BPM, DEFAULT_SUBDIVISION } from "./constants.js";
+
+const appWindow = getCurrentWindow();
 
 const bpmInput = document.getElementById("bpmInput");
 const subdivisionSelect = document.getElementById("subdivisionSelect");
@@ -23,6 +26,7 @@ const audioEngine = new AudioEngine();
 const ui = new UI();
 const projectManager = new ProjectManager();
 const sampleBuffers = new Map();
+const missingSampleWarnings = new Set();
 const exportManager = new ExportManager(audioEngine, projectManager, sampleBuffers);
 const dashboard = new Dashboard(projectManager, ui);
 const recorder = new Recorder(audioEngine);
@@ -39,16 +43,38 @@ let elapsed = 0;
 let activeRecRow = null;
 let inFlightRecordingPersist = false;
 let inFlightMasterExport = false;
+let inFlightSave = false;
+let inFlightExportMp3 = false;
+let inFlightDashboardAction = false;
+let handlingClose = false;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
   const { userRows, presetRows } = projectManager.state.sequencer;
   for (const row of userRows) {
     if (!row.steps[step] || row.mute || !row.samplePath) continue;
-    audioEngine.playBuffer({ buffer: sampleBuffers.get(row.samplePath), gainValue: row.volume, when });
+    const key = row.samplePath;
+    const buffer = sampleBuffers.get(key);
+    if (!buffer) {
+      if (!missingSampleWarnings.has(key)) {
+        missingSampleWarnings.add(key);
+        ui.log(`Missing sample buffer: ${key}`);
+      }
+      continue;
+    }
+    audioEngine.playBuffer({ buffer, gainValue: row.volume, when });
   }
   for (const row of presetRows) {
     if (!row.steps[step] || row.mute || !row.sound) continue;
-    audioEngine.playBuffer({ buffer: sampleBuffers.get(row.sound), gainValue: row.volume, when });
+    const key = row.sound;
+    const buffer = sampleBuffers.get(key);
+    if (!buffer) {
+      if (!missingSampleWarnings.has(key)) {
+        missingSampleWarnings.add(key);
+        ui.log(`Missing sample buffer: ${key}`);
+      }
+      continue;
+    }
+    audioEngine.playBuffer({ buffer, gainValue: row.volume, when });
   }
   ui.highlightStep(step);
 });
@@ -64,6 +90,7 @@ async function persistRecordedBuffer(rowIndex, buffer) {
     const samplePath = await projectManager.writeRecordingWav(rowIndex, wav);
     sampleBuffers.set(samplePath, buffer);
     row.samplePath = samplePath;
+    missingSampleWarnings.delete(samplePath);
     projectManager.markDirty();
     updateHeader();
     await renderSequencer();
@@ -123,7 +150,6 @@ function transitionTransport(nextState) {
   syncTransportLocks();
 }
 
-
 function clearMasterTimer() {
   if (!transportTimer) return;
   clearInterval(transportTimer);
@@ -142,14 +168,21 @@ async function loadSamplesForState() {
     const bytes = await projectManager.readFileBytes(sample);
     const prepared = await audioEngine.decodeAndPrepare(Uint8Array.from(bytes).buffer);
     sampleBuffers.set(sample, prepared);
+    missingSampleWarnings.delete(sample);
   }
   for (const row of projectManager.state.sequencer.userRows) {
     if (!row.samplePath || sampleBuffers.has(row.samplePath)) continue;
     try {
-      const bytes = await projectManager.readFileBytes(row.samplePath);
+      const bytes = await projectManager.readProjectFileBytes(row.samplePath);
       const prepared = await audioEngine.decodeAndPrepare(Uint8Array.from(bytes).buffer);
       sampleBuffers.set(row.samplePath, prepared);
-    } catch (_) {}
+      missingSampleWarnings.delete(row.samplePath);
+    } catch (_) {
+      if (!missingSampleWarnings.has(row.samplePath)) {
+        missingSampleWarnings.add(row.samplePath);
+        ui.log(`Missing recorded file: ${row.samplePath}`);
+      }
+    }
   }
   return sampleList;
 }
@@ -201,55 +234,99 @@ async function renderSequencer() {
 }
 
 async function openProject(name) {
-  await projectManager.loadProject(name);
-  activeRecRow = null;
-  updateHeader();
-  await renderSequencer();
-  ui.showSequencer();
+  if (inFlightDashboardAction) return;
+  inFlightDashboardAction = true;
+  try {
+    await projectManager.loadProject(name);
+    activeRecRow = null;
+    missingSampleWarnings.clear();
+    updateHeader();
+    await renderSequencer();
+    ui.showSequencer();
+  } finally {
+    inFlightDashboardAction = false;
+  }
+}
+
+async function runDashboardAction(task) {
+  if (inFlightDashboardAction) return;
+  inFlightDashboardAction = true;
+  try {
+    await task();
+  } finally {
+    inFlightDashboardAction = false;
+  }
 }
 
 async function refreshDashboard() {
   await dashboard.refresh({
     open: openProject,
-    rename: async (name) => {
+    rename: async (name) => runDashboardAction(async () => {
       const newName = prompt("Rename project", name);
       if (!newName || newName === name) return;
       await projectManager.renameProject(name, newName);
       await refreshDashboard();
-    },
-    duplicate: async (name) => {
+    }),
+    duplicate: async (name) => runDashboardAction(async () => {
       const target = prompt("Duplicate project as", `${name}_copy`);
       if (!target) return;
       await projectManager.duplicateProject(name, target);
       await refreshDashboard();
-    },
-    delete: async (name) => {
+    }),
+    delete: async (name) => runDashboardAction(async () => {
       if (!confirm(`Delete ${name}?`)) return;
       await projectManager.deleteProject(name);
       await refreshDashboard();
-    }
+    })
   });
 }
 
 newProjectBtn.onclick = async () => {
+  if (inFlightDashboardAction) return;
   const name = prompt("New project name", `project_${Date.now()}`);
   if (!name) return;
-  await projectManager.createProject(name);
-  await openProject(name);
+  await runDashboardAction(async () => {
+    await projectManager.createProject(name);
+    await openProject(name);
+  });
 };
 
+async function saveCurrentProject() {
+  if (inFlightSave || inFlightRecordingPersist || recorder.isRecording || inFlightMasterExport) return false;
+  inFlightSave = true;
+  try {
+    await projectManager.saveProject();
+    updateHeader();
+    ui.log("Project saved.");
+    return true;
+  } catch (error) {
+    ui.log(`Save failed: ${error?.message ?? "unknown error"}`);
+    return false;
+  } finally {
+    inFlightSave = false;
+  }
+}
+
 backBtn.onclick = async () => {
-  if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording) return;
-  if (projectManager.dirty && !confirm("Unsaved changes. Exit project?")) return;
+  if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording || inFlightMasterExport) return;
+  if (projectManager.dirty) {
+    const shouldSave = confirm("Unsaved changes. Save before exit?");
+    if (shouldSave) {
+      const saved = await saveCurrentProject();
+      if (!saved) return;
+    } else if (!confirm("Exit without saving?")) {
+      return;
+    }
+  }
   ui.showDashboard();
   await refreshDashboard();
 };
 
 saveBtn.onclick = async () => {
-  if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording || inFlightRecordingPersist) return ui.log("Cannot save while recording or persisting.");
-  await projectManager.saveProject();
-  updateHeader();
-  ui.log("Project saved.");
+  if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording || inFlightRecordingPersist || inFlightSave) {
+    return ui.log("Cannot save while recording, persisting, or saving.");
+  }
+  await saveCurrentProject();
 };
 
 addRecRowBtn.onclick = async () => {
@@ -318,14 +395,41 @@ recordMasterBtn.onclick = async () => {
 };
 
 exportBtn.onclick = async () => {
-  const path = await exportManager.exportMp3();
-  ui.log(`Exported MP3: ${path}`);
+  if (inFlightExportMp3) return;
+  inFlightExportMp3 = true;
+  try {
+    const path = await exportManager.exportMp3();
+    ui.log(`Exported MP3: ${path}`);
+  } catch (error) {
+    ui.log(`Export MP3 failed: ${error?.message ?? "unknown error"}`);
+  } finally {
+    inFlightExportMp3 = false;
+  }
 };
 
 syncTransportUi();
 syncTransportLocks();
 
 (async () => {
+  await appWindow.onCloseRequested(async (event) => {
+    if (handlingClose) return;
+    if (!projectManager.dirty) return;
+    event.preventDefault();
+
+    handlingClose = true;
+    try {
+      const shouldSave = confirm("Unsaved changes. Save before closing?");
+      if (shouldSave) {
+        const saved = await saveCurrentProject();
+        if (saved) await appWindow.close();
+      } else if (confirm("Close without saving?")) {
+        await appWindow.close();
+      }
+    } finally {
+      handlingClose = false;
+    }
+  });
+
   ui.showDashboard();
   await refreshDashboard();
 })();

@@ -19,7 +19,7 @@ export class UI {
     cards.forEach((card) => {
       const el = document.createElement("article");
       el.className = "project-card";
-      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm} · ${card.subdivision}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p>
+      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm} · ${card.subdivision}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p><p>Created ${card.created || "-"}</p><p>Modified ${card.modified || "-"}</p>
       <div><button data-a='open'>Open</button><button data-a='rename'>Rename</button><button data-a='duplicate'>Duplicate</button><button data-a='delete'>Delete</button></div>`;
       el.querySelector("[data-a='open']").onclick = () => handlers.open(card.name);
       el.querySelector("[data-a='rename']").onclick = () => handlers.rename(card.name);
