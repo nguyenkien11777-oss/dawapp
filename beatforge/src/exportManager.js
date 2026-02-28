@@ -29,7 +29,7 @@ function normalizeRenderedBuffer(buffer) {
     for (let i = 0; i < channel.length; i += 1) peak = Math.max(peak, Math.abs(channel[i]));
   }
 
-  const scale = peak > 0 ? TARGET_PEAK / peak : 1;
+  const scale = peak > TARGET_PEAK ? TARGET_PEAK / peak : 1;
   for (let c = 0; c < buffer.numberOfChannels; c += 1) {
     const channel = buffer.getChannelData(c);
     for (let i = 0; i < channel.length; i += 1) {

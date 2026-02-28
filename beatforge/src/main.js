@@ -234,18 +234,12 @@ async function renderSequencer() {
 }
 
 async function openProject(name) {
-  if (inFlightDashboardAction) return;
-  inFlightDashboardAction = true;
-  try {
-    await projectManager.loadProject(name);
-    activeRecRow = null;
-    missingSampleWarnings.clear();
-    updateHeader();
-    await renderSequencer();
-    ui.showSequencer();
-  } finally {
-    inFlightDashboardAction = false;
-  }
+  await projectManager.loadProject(name);
+  activeRecRow = null;
+  missingSampleWarnings.clear();
+  updateHeader();
+  await renderSequencer();
+  ui.showSequencer();
 }
 
 async function runDashboardAction(task) {
@@ -260,7 +254,7 @@ async function runDashboardAction(task) {
 
 async function refreshDashboard() {
   await dashboard.refresh({
-    open: openProject,
+    open: async (name) => runDashboardAction(async () => { await openProject(name); }),
     rename: async (name) => runDashboardAction(async () => {
       const newName = prompt("Rename project", name);
       if (!newName || newName === name) return;
@@ -413,6 +407,11 @@ syncTransportLocks();
 (async () => {
   await appWindow.onCloseRequested(async (event) => {
     if (handlingClose) return;
+    if (inFlightSave) {
+      event.preventDefault();
+      ui.log("Save in progress");
+      return;
+    }
     if (!projectManager.dirty) return;
     event.preventDefault();
 

@@ -265,8 +265,17 @@ fn read_project_file_bytes(project: String, path: String) -> Result<Vec<u8>, Str
     if clean.is_absolute() {
         return Err("path must be project-relative".into());
     }
-    let full = project_dir(&project)?.join(clean);
-    fs::read(full).map_err(|e| e.to_string())
+
+    let root = project_dir(&project)?;
+    let canonical_root = fs::canonicalize(&root).map_err(|e| e.to_string())?;
+    let full = root.join(clean);
+    let canonical_full = fs::canonicalize(&full).map_err(|e| e.to_string())?;
+
+    if !canonical_full.starts_with(&canonical_root) {
+        return Err("path escapes project directory".into());
+    }
+
+    fs::read(canonical_full).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
