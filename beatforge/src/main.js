@@ -115,6 +115,17 @@ recorder.on("record-stop", async ({ cellIndex, buffer }) => {
   }
 });
 
+
+function safeAsync(handler) {
+  return async (...args) => {
+    try {
+      await handler(...args);
+    } catch (err) {
+      console.error("Unhandled UI async error:", err);
+    }
+  };
+}
+
 function isTransportActive() {
   return transportState !== TRANSPORT_STATE.IDLE;
 }
@@ -254,28 +265,28 @@ async function runDashboardAction(task) {
 
 async function refreshDashboard() {
   await dashboard.refresh({
-    open: async (name) => runDashboardAction(async () => { await openProject(name); }),
-    rename: async (name) => runDashboardAction(async () => {
+    open: safeAsync(async (name) => runDashboardAction(async () => { await openProject(name); })),
+    rename: safeAsync(async (name) => runDashboardAction(async () => {
       const newName = prompt("Rename project", name);
       if (!newName || newName === name) return;
       await projectManager.renameProject(name, newName);
       await refreshDashboard();
-    }),
-    duplicate: async (name) => runDashboardAction(async () => {
+    })),
+    duplicate: safeAsync(async (name) => runDashboardAction(async () => {
       const target = prompt("Duplicate project as", `${name}_copy`);
       if (!target) return;
       await projectManager.duplicateProject(name, target);
       await refreshDashboard();
-    }),
-    delete: async (name) => runDashboardAction(async () => {
+    })),
+    delete: safeAsync(async (name) => runDashboardAction(async () => {
       if (!confirm(`Delete ${name}?`)) return;
       await projectManager.deleteProject(name);
       await refreshDashboard();
-    })
+    }))
   });
 }
 
-newProjectBtn.onclick = async () => {
+newProjectBtn.onclick = safeAsync(async () => {
   if (inFlightDashboardAction) return;
   const name = prompt("New project name", `project_${Date.now()}`);
   if (!name) return;
@@ -283,7 +294,7 @@ newProjectBtn.onclick = async () => {
     await projectManager.createProject(name);
     await openProject(name);
   });
-};
+});
 
 async function saveCurrentProject() {
   if (inFlightSave || inFlightRecordingPersist || recorder.isRecording || inFlightMasterExport) return false;
@@ -301,7 +312,7 @@ async function saveCurrentProject() {
   }
 }
 
-backBtn.onclick = async () => {
+backBtn.onclick = safeAsync(async () => {
   if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording || inFlightMasterExport) return;
   if (projectManager.dirty) {
     const shouldSave = confirm("Unsaved changes. Save before exit?");
@@ -314,23 +325,23 @@ backBtn.onclick = async () => {
   }
   ui.showDashboard();
   await refreshDashboard();
-};
+});
 
-saveBtn.onclick = async () => {
+saveBtn.onclick = safeAsync(async () => {
   if (transportState === TRANSPORT_STATE.MASTER_RECORDING || recorder.isRecording || inFlightRecordingPersist || inFlightSave) {
     return ui.log("Cannot save while recording, persisting, or saving.");
   }
   await saveCurrentProject();
-};
+});
 
-addRecRowBtn.onclick = async () => {
+addRecRowBtn.onclick = safeAsync(async () => {
   if (isTransportActive()) return;
   if (projectManager.state.addRecRow()) { projectManager.markDirty(); updateHeader(); await renderSequencer(); }
-};
-addPresetRowBtn.onclick = async () => {
+});
+addPresetRowBtn.onclick = safeAsync(async () => {
   if (isTransportActive()) return;
   if (projectManager.state.addPresetRow()) { projectManager.markDirty(); updateHeader(); await renderSequencer(); }
-};
+});
 
 bpmInput.oninput = () => {
   const bpm = Number(bpmInput.value);
@@ -350,7 +361,7 @@ subdivisionSelect.onchange = () => {
   updateHeader();
 };
 
-playBtn.onclick = async () => {
+playBtn.onclick = safeAsync(async () => {
   if (transportState === TRANSPORT_STATE.MASTER_RECORDING) return;
   await audioEngine.ensureRunning();
   if (transportState === TRANSPORT_STATE.IDLE) {
@@ -358,9 +369,9 @@ playBtn.onclick = async () => {
   } else {
     transitionTransport(TRANSPORT_STATE.IDLE);
   }
-};
+});
 
-recordMasterBtn.onclick = async () => {
+recordMasterBtn.onclick = safeAsync(async () => {
   await audioEngine.ensureRunning();
   if (transportState !== TRANSPORT_STATE.MASTER_RECORDING) {
     transitionTransport(TRANSPORT_STATE.MASTER_RECORDING);
@@ -386,9 +397,9 @@ recordMasterBtn.onclick = async () => {
       transitionTransport(TRANSPORT_STATE.IDLE);
     }
   }
-};
+});
 
-exportBtn.onclick = async () => {
+exportBtn.onclick = safeAsync(async () => {
   if (inFlightExportMp3) return;
   inFlightExportMp3 = true;
   try {
@@ -399,7 +410,7 @@ exportBtn.onclick = async () => {
   } finally {
     inFlightExportMp3 = false;
   }
-};
+});
 
 syncTransportUi();
 syncTransportLocks();
