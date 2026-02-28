@@ -9,6 +9,7 @@ export class Recorder {
     this.stopTimer = null;
     this.recordingCell = null;
     this.listeners = new Set();
+    this.stoppingPromise = null;
   }
 
   get isRecording() {
@@ -16,11 +17,11 @@ export class Recorder {
   }
 
   async start(cellIndex) {
-    if (this.isRecording) {
+    if (this.isRecording || this.stoppingPromise) {
       throw new Error("Only one recording can run at a time.");
     }
-    this.recordingCell = cellIndex;
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.recordingCell = cellIndex;
     this.mediaRecorder = new MediaRecorder(this.stream, { mimeType: "audio/webm" });
     this.chunks = [];
 
@@ -32,35 +33,50 @@ export class Recorder {
     this.notify("record-start", { cellIndex });
 
     this.stopTimer = window.setTimeout(() => {
-      if (this.isRecording) this.stop();
+      if (this.isRecording) {
+        this.stop().catch(() => {});
+      }
     }, MAX_DURATION_SECONDS * 1000);
   }
 
   async stop() {
+    if (this.stoppingPromise) return this.stoppingPromise;
     if (!this.mediaRecorder) return null;
 
-    const recorder = this.mediaRecorder;
-    const stream = this.stream;
+    this.stoppingPromise = (async () => {
+      const recorder = this.mediaRecorder;
+      const stream = this.stream;
 
-    const blob = await new Promise((resolve) => {
-      recorder.addEventListener("stop", () => {
-        resolve(new Blob(this.chunks, { type: "audio/webm" }));
-      }, { once: true });
-      recorder.stop();
-    });
+      const blob = await new Promise((resolve) => {
+        if (recorder.state === "inactive") {
+          resolve(new Blob(this.chunks, { type: "audio/webm" }));
+          return;
+        }
+        recorder.addEventListener("stop", () => {
+          resolve(new Blob(this.chunks, { type: "audio/webm" }));
+        }, { once: true });
+        recorder.stop();
+      });
 
-    this.cleanup();
-    const arrayBuffer = await blob.arrayBuffer();
-    const prepared = await this.audioEngine.decodeAndPrepare(arrayBuffer);
+      this.cleanup();
+      const arrayBuffer = await blob.arrayBuffer();
+      const prepared = await this.audioEngine.decodeAndPrepare(arrayBuffer);
 
-    this.notify("record-stop", { cellIndex: this.recordingCell, buffer: prepared });
-    this.recordingCell = null;
+      this.notify("record-stop", { cellIndex: this.recordingCell, buffer: prepared });
+      this.recordingCell = null;
 
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+
+      return prepared;
+    })();
+
+    try {
+      return await this.stoppingPromise;
+    } finally {
+      this.stoppingPromise = null;
     }
-
-    return prepared;
   }
 
   on(event, handler) {
@@ -78,7 +94,16 @@ export class Recorder {
   notify(event, payload) {
     for (const listener of this.listeners) {
       if (listener.event === event) {
-        listener.handler(payload);
+        try {
+          const result = listener.handler(payload);
+          if (result && typeof result.then === "function") {
+            result.catch((err) => {
+              console.error("Recorder listener async error:", err);
+            });
+          }
+        } catch (err) {
+          console.error("Recorder listener sync error:", err);
+        }
       }
     }
   }

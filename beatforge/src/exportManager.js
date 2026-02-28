@@ -1,10 +1,7 @@
-import { MAX_MASTER_GAIN, STEPS, SUBDIVISIONS } from "./constants.js";
+import { invoke } from "@tauri-apps/api/core";
+import { MAX_MASTER_GAIN, STEPS, SUBDIVISIONS, TARGET_PEAK } from "./constants.js";
 
-const tauriInvoke = async (cmd, args = {}) => {
-  const invoker = window.__TAURI__?.core?.invoke;
-  if (!invoker) throw new Error("Tauri runtime not available");
-  return invoker(cmd, args);
-};
+const tauriInvoke = (cmd, args = {}) => invoke(cmd, args);
 
 function interleave(buffer) {
   const channels = buffer.numberOfChannels;
@@ -23,6 +20,22 @@ function floatTo16BitPCM(float32) {
     output.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
   }
   return new Uint8Array(output.buffer);
+}
+
+function normalizeRenderedBuffer(buffer) {
+  let peak = 0;
+  for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+    const channel = buffer.getChannelData(c);
+    for (let i = 0; i < channel.length; i += 1) peak = Math.max(peak, Math.abs(channel[i]));
+  }
+
+  const scale = peak > TARGET_PEAK ? TARGET_PEAK / peak : 1;
+  for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+    const channel = buffer.getChannelData(c);
+    for (let i = 0; i < channel.length; i += 1) {
+      channel[i] = Math.max(-1, Math.min(1, channel[i] * scale));
+    }
+  }
 }
 
 export function encodeWav(audioBuffer) {
@@ -96,7 +109,10 @@ export class ExportManager {
         s.connect(g); g.connect(master); s.start(when);
       }
     }
-    return encodeWav(await offline.startRendering());
+
+    const rendered = await offline.startRendering();
+    normalizeRenderedBuffer(rendered);
+    return encodeWav(rendered);
   }
 
   async exportMp3() {

@@ -19,7 +19,7 @@ export class UI {
     cards.forEach((card) => {
       const el = document.createElement("article");
       el.className = "project-card";
-      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm} · ${card.subdivision}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p>
+      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm} · ${card.subdivision}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p><p>Created ${card.created || "-"}</p><p>Modified ${card.modified || "-"}</p>
       <div><button data-a='open'>Open</button><button data-a='rename'>Rename</button><button data-a='duplicate'>Duplicate</button><button data-a='delete'>Delete</button></div>`;
       el.querySelector("[data-a='open']").onclick = () => handlers.open(card.name);
       el.querySelector("[data-a='rename']").onclick = () => handlers.rename(card.name);
@@ -30,6 +30,19 @@ export class UI {
   }
 
   renderRows(rows, container, type, opts = {}) {
+    const invokeCallback = (callback, ...args) => {
+      try {
+        const result = callback?.(...args);
+        if (result && typeof result.then === "function") {
+          result.catch((err) => {
+            console.error("UI callback async error:", err);
+          });
+        }
+      } catch (err) {
+        console.error("UI callback sync error:", err);
+      }
+    };
+
     container.innerHTML = "";
     rows.forEach((row, rowIndex) => {
       const wrap = document.createElement("div");
@@ -44,15 +57,20 @@ export class UI {
         const b = document.createElement("button");
         b.className = `step ${active ? "on" : ""}`;
         b.textContent = String(stepIndex + 1);
-        b.onclick = () => opts.onStep?.(type, rowIndex, stepIndex);
+        b.onclick = () => invokeCallback(opts.onStep, type, rowIndex, stepIndex);
         steps.appendChild(b);
       });
       wrap.appendChild(steps);
 
-      controls.querySelector("[data-del]").onclick = () => opts.onDelete?.(type, rowIndex);
-      controls.querySelector("[data-vol]").oninput = (e) => opts.onVolume?.(type, rowIndex, Number(e.target.value));
-      controls.querySelector("[data-mute]").onclick = () => opts.onMute?.(type, rowIndex);
-      if (type === "rec") controls.querySelector("[data-rec]").onclick = () => opts.onRec?.(rowIndex);
+      controls.querySelector("[data-del]").onclick = () => invokeCallback(opts.onDelete, type, rowIndex);
+      controls.querySelector("[data-vol]").oninput = (e) => invokeCallback(opts.onVolume, type, rowIndex, Number(e.target.value));
+      controls.querySelector("[data-mute]").onclick = () => invokeCallback(opts.onMute, type, rowIndex);
+      if (type === "rec") {
+        const recBtn = controls.querySelector("[data-rec]");
+        recBtn.textContent = opts.recordingRow === rowIndex ? "STOP REC" : "REC";
+        recBtn.disabled = Boolean(opts.lockRec) || (opts.recordingRow !== null && opts.recordingRow !== rowIndex);
+        recBtn.onclick = () => invokeCallback(opts.onRec, rowIndex);
+      }
       if (type === "preset") {
         const select = controls.querySelector("[data-sound]");
         (opts.samples ?? []).forEach((sample) => {
@@ -62,7 +80,7 @@ export class UI {
           select.appendChild(option);
         });
         select.value = row.sound ?? "";
-        select.onchange = (e) => opts.onSound?.(rowIndex, e.target.value);
+        select.onchange = (e) => invokeCallback(opts.onSound, rowIndex, e.target.value);
         select.disabled = Boolean(opts.lockSoundChange);
       }
       container.appendChild(wrap);

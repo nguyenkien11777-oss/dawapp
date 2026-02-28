@@ -24,7 +24,9 @@ fn app_root() -> Result<PathBuf, String> {
     Ok(root)
 }
 
-fn config_path() -> Result<PathBuf, String> { Ok(app_root()?.join("config.json")) }
+fn config_path() -> Result<PathBuf, String> {
+    Ok(app_root()?.join("config.json"))
+}
 
 fn project_dir(project: &str) -> Result<PathBuf, String> {
     let dir = app_root()?.join("projects").join(project);
@@ -41,37 +43,117 @@ fn safe_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     fs::rename(tmp, path).map_err(|e| e.to_string())
 }
 
+fn read_recent_projects() -> Result<Vec<String>, String> {
+    let path = config_path()?;
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let list = serde_json::from_str::<Value>(&fs::read_to_string(path).map_err(|e| e.to_string())?)
+        .ok()
+        .and_then(|v| v.get("recentProjects").and_then(Value::as_array).cloned())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(list)
+}
+
+fn sort_cards_by_mru(cards: &mut [ProjectCard]) -> Result<(), String> {
+    let mru = read_recent_projects()?;
+    cards.sort_by(|a, b| {
+        let ia = mru.iter().position(|p| p == &a.name);
+        let ib = mru.iter().position(|p| p == &b.name);
+        match (ia, ib) {
+            (Some(x), Some(y)) => x.cmp(&y),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.name.cmp(&b.name),
+        }
+    });
+    Ok(())
+}
+
+fn copy_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    if src.is_dir() {
+        fs::create_dir_all(dst).map_err(|e| e.to_string())?;
+        for entry in fs::read_dir(src).map_err(|e| e.to_string())? {
+            let e = entry.map_err(|e| e.to_string())?;
+            copy_recursive(&e.path(), &dst.join(e.file_name()))?;
+        }
+        return Ok(());
+    }
+
+    fs::copy(src, dst).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn list_project_cards() -> Result<Vec<ProjectCard>, String> {
     let root = app_root()?.join("projects");
     let mut cards = Vec::new();
     for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
-        if !entry.path().is_dir() { continue; }
+        if !entry.path().is_dir() {
+            continue;
+        }
         let name = entry.file_name().to_string_lossy().to_string();
         let p = entry.path().join("project.json");
-        let raw = if p.exists() { fs::read_to_string(&p).unwrap_or_else(|_| "{}".into()) } else { "{}".into() };
+        let raw = if p.exists() {
+            fs::read_to_string(&p).unwrap_or_else(|_| "{}".into())
+        } else {
+            "{}".into()
+        };
         let v: Value = serde_json::from_str(&raw).unwrap_or_else(|_| json!({}));
-        let bpm = v.pointer("/sequencer/bpm").and_then(Value::as_u64).unwrap_or(120);
-        let subdivision = v.pointer("/sequencer/subdivision").and_then(Value::as_str).unwrap_or("1/16").to_string();
-        let user_rows = v.pointer("/sequencer/userRows").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0);
-        let preset_rows = v.pointer("/sequencer/presetRows").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0);
+        let bpm = v
+            .pointer("/sequencer/bpm")
+            .and_then(Value::as_u64)
+            .unwrap_or(120);
+        let subdivision = v
+            .pointer("/sequencer/subdivision")
+            .and_then(Value::as_str)
+            .unwrap_or("1/16")
+            .to_string();
+        let user_rows = v
+            .pointer("/sequencer/userRows")
+            .and_then(Value::as_array)
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let preset_rows = v
+            .pointer("/sequencer/presetRows")
+            .and_then(Value::as_array)
+            .map(|a| a.len())
+            .unwrap_or(0);
         cards.push(ProjectCard {
             name,
-            created: v.pointer("/meta/createdAt").and_then(Value::as_str).unwrap_or("").to_string(),
-            modified: v.pointer("/meta/updatedAt").and_then(Value::as_str).unwrap_or("").to_string(),
+            created: v
+                .pointer("/meta/createdAt")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            modified: v
+                .pointer("/meta/updatedAt")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
             bpm,
             subdivision,
             row_count: user_rows + preset_rows,
             has_master: entry.path().join("master.wav").exists(),
         });
     }
-    cards.sort_by(|a, b| a.name.cmp(&b.name));
+
+    sort_cards_by_mru(&mut cards)?;
     Ok(cards)
 }
 
 #[tauri::command]
-fn create_project(name: String) -> Result<String, String> { project_dir(&name)?; Ok(name) }
+fn create_project(name: String) -> Result<String, String> {
+    project_dir(&name)?;
+    Ok(name)
+}
 
 #[tauri::command]
 fn save_project(project: String, content: String) -> Result<(), String> {
@@ -81,7 +163,9 @@ fn save_project(project: String, content: String) -> Result<(), String> {
 #[tauri::command]
 fn load_project(project: String) -> Result<String, String> {
     let path = project_dir(&project)?.join("project.json");
-    if !path.exists() { return Ok("{}".into()); }
+    if !path.exists() {
+        return Ok("{}".into());
+    }
     fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
@@ -95,7 +179,9 @@ fn rename_project(project: String, new_name: String) -> Result<(), String> {
 #[tauri::command]
 fn delete_project(project: String) -> Result<(), String> {
     let dir = app_root()?.join("projects").join(project);
-    if dir.exists() { fs::remove_dir_all(dir).map_err(|e| e.to_string())?; }
+    if dir.exists() {
+        fs::remove_dir_all(dir).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -107,11 +193,21 @@ fn duplicate_project(source: String, target: String) -> Result<(), String> {
         let e = entry.map_err(|e| e.to_string())?;
         let path = e.path();
         let name = e.file_name().to_string_lossy().to_string();
-        if name == "master.wav" || name == "renders" { continue; }
+        if name == "master.wav" || name == "renders" {
+            continue;
+        }
         let out = dst.join(name);
-        if path.is_file() { fs::copy(path, out).map_err(|e| e.to_string())?; }
+        copy_recursive(&path, &out)?;
     }
     Ok(())
+}
+
+#[tauri::command]
+fn write_recording_wav(project: String, row: usize, bytes: Vec<u8>) -> Result<String, String> {
+    let relative = PathBuf::from("recordings").join(format!("rec_{row}.wav"));
+    let path = project_dir(&project)?.join(&relative);
+    safe_write(&path, &bytes)?;
+    Ok(relative.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -125,7 +221,9 @@ fn write_master_wav(project: String, bytes: Vec<u8>) -> Result<String, String> {
 fn export_mp3_from_master(project: String) -> Result<String, String> {
     let dir = project_dir(&project)?;
     let wav_path = dir.join("master.wav");
-    if !wav_path.exists() { return Err("master.wav not found".into()); }
+    if !wav_path.exists() {
+        return Err("master.wav not found".into());
+    }
     let mp3_path = dir.join("renders").join("export.mp3");
     ffmpeg::encode_mp3(&wav_path, &mp3_path)?;
     Ok(mp3_path.to_string_lossy().to_string())
@@ -133,12 +231,22 @@ fn export_mp3_from_master(project: String) -> Result<String, String> {
 
 #[tauri::command]
 fn list_drum_samples() -> Result<Vec<String>, String> {
-    let dir = std::env::current_dir().map_err(|e| e.to_string())?.join("assets").join("drums");
-    if !dir.exists() { return Ok(vec![]); }
+    let dir = std::env::current_dir()
+        .map_err(|e| e.to_string())?
+        .join("assets")
+        .join("drums");
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
     let mut files = vec![];
     for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
         let p = entry.map_err(|e| e.to_string())?.path();
-        if p.is_file() && p.extension().and_then(|s| s.to_str()).unwrap_or("").eq_ignore_ascii_case("wav") {
+        if p.is_file()
+            && p.extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .eq_ignore_ascii_case("wav")
+        {
             files.push(p.to_string_lossy().to_string());
         }
     }
@@ -147,22 +255,42 @@ fn list_drum_samples() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-fn read_file_bytes(path: String) -> Result<Vec<u8>, String> { fs::read(path).map_err(|e| e.to_string()) }
+fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_project_file_bytes(project: String, path: String) -> Result<Vec<u8>, String> {
+    let clean = PathBuf::from(path);
+    if clean.is_absolute() {
+        return Err("path must be project-relative".into());
+    }
+
+    let root = project_dir(&project)?;
+    let canonical_root = fs::canonicalize(&root).map_err(|e| e.to_string())?;
+    let full = root.join(clean);
+    let canonical_full = fs::canonicalize(&full).map_err(|e| e.to_string())?;
+
+    if !canonical_full.starts_with(&canonical_root) {
+        return Err("path escapes project directory".into());
+    }
+
+    fs::read(canonical_full).map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 fn touch_recent_project(project: String) -> Result<(), String> {
     let path = config_path()?;
-    let mut list: Vec<String> = if path.exists() {
-        serde_json::from_str::<Value>(&fs::read_to_string(&path).map_err(|e| e.to_string())?)
-            .ok()
-            .and_then(|v| v.get("recentProjects").and_then(Value::as_array).cloned())
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
-            .unwrap_or_default()
-    } else { vec![] };
+    let mut list = read_recent_projects()?;
     list.retain(|p| p != &project);
     list.insert(0, project);
     list.truncate(10);
-    safe_write(&path, serde_json::to_string_pretty(&json!({"recentProjects": list})).unwrap().as_bytes())
+    safe_write(
+        &path,
+        serde_json::to_string_pretty(&json!({"recentProjects": list}))
+            .unwrap()
+            .as_bytes(),
+    )
 }
 
 fn main() {
@@ -175,10 +303,12 @@ fn main() {
             rename_project,
             delete_project,
             duplicate_project,
+            write_recording_wav,
             write_master_wav,
             export_mp3_from_master,
             list_drum_samples,
             read_file_bytes,
+            read_project_file_bytes,
             touch_recent_project
         ])
         .run(tauri::generate_context!())
