@@ -385,4 +385,34 @@ Security
 
 Race elimination
 
+tree structure
+[
+  dawapp/beatforge
+  |/assets/drums
+    |drum.wav
+    |hat.wav
+    |hat.wav
+    |...
+  |/src
+    |audioEngine.js
+    |constants.js
+    |dashboard.js
+    |exportManager.js
+    |recorder.js
+    |scheduler.js
+    |sequencerState.js
+    |style.css
+    |ui.js
+  |/src-tauri
+    |/gen
+    |/icons
+    |/src
+    |/target
+    |build.rs
+    |cargo.toml
+    |tauri.conf.json
+  |index.html
+  |package.json
+  |pakage-lock.json
+]
 Từ v2 trở đi, mọi phát triển mới phải giữ các nguyên tắc trên.
