@@ -231,16 +231,25 @@ fn export_mp3_from_master(project: String) -> Result<String, String> {
 
 #[tauri::command]
 fn list_drum_samples() -> Result<Vec<String>, String> {
-    let dir = std::env::current_dir()
-        .map_err(|e| e.to_string())?
-        .join("assets")
-        .join("drums");
-    if !dir.exists() {
+    let mut dir = std::env::current_dir().map_err(|e| e.to_string())?;
+
+    // Nếu đang ở src-tauri thì lùi lên 1 cấp
+    if dir.ends_with("src-tauri") {
+        dir = dir.parent().ok_or("no parent")?.to_path_buf();
+    }
+
+    let drums_dir = dir.join("assets").join("drums");
+
+    if !drums_dir.exists() {
+        println!("Drum folder not found at {:?}", drums_dir);
         return Ok(vec![]);
     }
+
     let mut files = vec![];
-    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+
+    for entry in fs::read_dir(drums_dir).map_err(|e| e.to_string())? {
         let p = entry.map_err(|e| e.to_string())?.path();
+
         if p.is_file()
             && p.extension()
                 .and_then(|s| s.to_str())
@@ -250,6 +259,7 @@ fn list_drum_samples() -> Result<Vec<String>, String> {
             files.push(p.to_string_lossy().to_string());
         }
     }
+
     files.sort();
     Ok(files)
 }
