@@ -19,4 +19,5 @@ main{padding:12px;max-height:calc(100vh - 220px);overflow:auto}
 .transport{position:fixed;left:0;right:0;bottom:0;padding:12px;background:#0f1220;border-top:1px solid #2f3750;display:flex;gap:12px;align-items:center}
 #recordMasterBtn.recording{background:var(--danger);animation:pulse .8s infinite}
 #statusLog{margin:0;padding:8px 12px 80px;color:var(--muted);font-size:12px;white-space:pre-wrap}
+select {max-width: 160px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}
 @keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
