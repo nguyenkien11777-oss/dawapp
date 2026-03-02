@@ -4,6 +4,8 @@ project: BeatForge
 constitutional_authority: ARCHITECTURE_DOC
 phase: v2_stabilized_production
 phase_change_requires_constitution_review: true
+validation_required_on_major_change: true
+memory_requires_drift_check: true
 current_focus:
   - hardening-complete with guard-centric control flow
   - preserving deterministic behavior during incremental expansion
@@ -13,11 +15,10 @@ active_module:
     - beatforge/src-tauri/src/main.rs
     - beatforge/src/recorder.js
     - beatforge/src/exportManager.js
+   note: "May change if orchestration is modularized."
 health_estimation:
   status: structurally_consistent_snapshot
   confidence: inference_based
-  validation_required_on_major_change: true
-  memory_requires_drift_check: true
   rationale:
     - recent commits target stabilization and async safety
     - transport and guard flows are explicit and centralized
@@ -31,5 +32,3 @@ known_risks:
 recent_edit_signal:
   - async handler isolation updates in UI, recorder, startup
   - backend and style changes in latest non-merge commit
-active_module:
-  note: "May change if orchestration is modularized."
