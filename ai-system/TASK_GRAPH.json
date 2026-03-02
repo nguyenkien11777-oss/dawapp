@@ -1,0 +1,122 @@
+{
+  "project": "BeatForge",
+  "constitution": "/beatforge/ARCHITECTURE_V1_V2.md",
+  "generated_at": "2026-03-02",
+  "nodes": [
+    {
+      "id": "mod.frontend.main",
+      "type": "module",
+      "path": "beatforge/src/main.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.audio",
+      "type": "module",
+      "path": "beatforge/src/audioEngine.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.scheduler",
+      "type": "module",
+      "path": "beatforge/src/scheduler.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.recorder",
+      "type": "module",
+      "path": "beatforge/src/recorder.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.export",
+      "type": "module",
+      "path": "beatforge/src/exportManager.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.state",
+      "type": "module",
+      "path": "beatforge/src/sequencerState.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.ui",
+      "type": "module",
+      "path": "beatforge/src/ui.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.frontend.dashboard",
+      "type": "module",
+      "path": "beatforge/src/dashboard.js",
+      "status": "completed"
+    },
+    {
+      "id": "mod.backend.commands",
+      "type": "module",
+      "path": "beatforge/src-tauri/src/main.rs",
+      "status": "completed"
+    },
+    {
+      "id": "mod.backend.ffmpeg",
+      "type": "module",
+      "path": "beatforge/src-tauri/src/ffmpeg.rs",
+      "status": "completed"
+    },
+    {
+      "id": "task.regression.transport-contracts",
+      "type": "task",
+      "status": "pending",
+      "depends_on": [
+        "mod.frontend.main",
+        "mod.frontend.scheduler"
+      ]
+    },
+    {
+      "id": "task.regression.invoke-contracts",
+      "type": "task",
+      "status": "pending",
+      "depends_on": [
+        "mod.frontend.main",
+        "mod.frontend.export",
+        "mod.backend.commands"
+      ]
+    },
+    {
+      "id": "task.observability.error-telemetry",
+      "type": "task",
+      "status": "pending",
+      "depends_on": [
+        "mod.frontend.ui",
+        "mod.frontend.recorder",
+        "mod.backend.commands"
+      ]
+    },
+    {
+      "id": "task.scaling.dashboard-index",
+      "type": "task",
+      "status": "pending",
+      "depends_on": [
+        "mod.backend.commands",
+        "mod.frontend.dashboard"
+      ]
+    },
+    {
+      "id": "task.expansion.multi-pattern-foundation",
+      "type": "task",
+      "status": "pending",
+      "depends_on": [
+        "mod.frontend.state",
+        "mod.frontend.main",
+        "mod.backend.commands"
+      ]
+    }
+  ],
+  "recently_modified_areas": [
+    "beatforge/src/main.js",
+    "beatforge/src/recorder.js",
+    "beatforge/src/ui.js",
+    "beatforge/src-tauri/src/main.rs",
+    "beatforge/src/style.css"
+  ]
+}
