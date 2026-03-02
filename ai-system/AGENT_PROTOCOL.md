@@ -1,5 +1,7 @@
 # AI Agent Protocol (BeatForge v2)
 
+Every verification must explicitly reference the relevant section heading in /beatforge/ARCHITECTURE_V1_V2.md
+
 ## Constitutional Authority
 - **Single authority:** `/beatforge/ARCHITECTURE_V1_V2.md`.
 - This protocol is operational only and does not define architecture law.
