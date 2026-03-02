@@ -24,6 +24,12 @@ If any check fails or is uncertain: **ABORT** and mark proposal status as `rejec
 - `draft` → `constitution-check` → `approved` or `rejected_by_constitution`.
 - No implementation work may begin without `approved` status.
 
+Pre-Decision Drift Check (Required)
+Before any architectural proposal:
+
+1. Re-scan affected modules from live repository.
+2. Compare structural assumptions in AI_STATE.yaml and LONG_TERM_MEMORY.md with current code.
+3. If structural mismatch detected → update memory artifacts before proceeding.
 ## Conflict Procedure
 - Record the exact conflicting module/function.
 - Record the affected workflow.
