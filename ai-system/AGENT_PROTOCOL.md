@@ -1,5 +1,19 @@
 # AI Agent Protocol (BeatForge v2)
 
+## Governance Enforcement Rules
+Memory artifacts may inform context but must not be used as justification for architectural direction.
+Architectural justification must derive from live code and ARCHITECTURE_DOC only.
+Compliance Gate results must be definitive (PASS or FAIL).
+Each Compliance Gate item must explicitly reference the corresponding rule or section in ARCHITECTURE_DOC.
+Uncertainty must be treated as FAIL and may not be assumed safe.
+Conditional statements are not sufficient. Compliance Gate output must list each evaluated rule and assign PASS or FAIL explicitly.
+Drift Check must:
+- Explicitly state either:
+  - "No structural drift detected"
+  OR
+  - "Drift detected in [module]"
+- Confirm evaluation against current repository state relative to `snapshot_date` in AI_STATE.yaml.
+
 ## Constitutional Authority Reference
 ARCHITECTURE_DOC = /beatforge/ARCHITECTURE_V1_V2.md
 
@@ -14,10 +28,10 @@ Live repository code always overrides memory artifacts.
 
 When proposing structural changes:
 Reference concrete code locations, not memory descriptions.
-
-rejected_by_constitution
-requires_human_review
-approved
+Structural proposals must include:
+- Affected modules
+- Preserved invariants
+- Non-regression checklist referencing ARCHITECTURE_DOC guarantees.
 
 ## Constitutional Authority
 - **Single authority:** `ARCHITECTURE_DOC`.
@@ -38,7 +52,7 @@ For every non-trivial change proposal, run this gate:
 If any check fails or is uncertain: **ABORT** and mark proposal status as `rejected_by_constitution`.
 
 ## Proposal Lifecycle
-- `draft` → `constitution-check` → `approved` or `rejected_by_constitution`.
+- `draft` → `constitution-check` → `approved` / `requires_human_review` / `rejected_by_constitution`
 - No implementation work may begin without `approved` status.
 
 Pre-Decision Drift Check (Required)
