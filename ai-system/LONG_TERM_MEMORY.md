@@ -1,7 +1,9 @@
 # Long-Term Operational Memory
 
 Memory descriptions must not constrain future modular refactoring.
-If module boundaries change, update LONG_TERM_MEMORY before architectural decisions.
+If module boundaries change:
+1. Re-validate against ARCHITECTURE_DOC.
+2. Then update LONG_TERM_MEMORY to reflect current structure.
 
 ## Memory Governance
 
@@ -36,7 +38,7 @@ If module boundaries change, update LONG_TERM_MEMORY before architectural decisi
 ## Expansion Watchlist
 - Introducing undo/redo or multi-pattern sequencing will increase state-shape and migration complexity.
 - Adding new export formats will deepen codec/runtime dependency surface.
-- Multi-window or collaboration features may require revisiting current single-process assumptions. Must be validated against ARCHITECTURE_V1_V2.md.
+- Multi-window or collaboration features may require revisiting current single-process assumptions. Must be validated against ARCHITECTURE_DOC.
 
 ## Validity Boundary
 Derived from repository snapshot_date in AI_STATE.yaml.
