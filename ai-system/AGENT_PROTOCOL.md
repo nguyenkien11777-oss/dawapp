@@ -8,6 +8,10 @@ Live repository code always overrides memory artifacts.
 When proposing structural changes:
 Reference concrete code locations, not memory descriptions.
 
+rejected_by_constitution
+requires_human_review
+approved
+
 ## Constitutional Authority
 - **Single authority:** `/beatforge/ARCHITECTURE_V1_V2.md`.
 - This protocol is operational only and does not define architecture law.
