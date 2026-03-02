@@ -1,5 +1,8 @@
 # Long-Term Operational Memory
 
+Memory descriptions must not constrain future modular refactoring.
+If module boundaries change, update LONG_TERM_MEMORY before architectural decisions.
+
 ## Risk-Sensitive Areas
 - `beatforge/src/main.js`: central event wiring and guard coordination; highest regression blast radius.
 - `beatforge/src-tauri/src/main.rs`: filesystem and project lifecycle operations; failures affect data integrity and recoverability.
