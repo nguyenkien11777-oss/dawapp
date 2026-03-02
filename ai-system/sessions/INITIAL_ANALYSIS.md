@@ -1,11 +1,11 @@
-## Temporal Scope
-This roadmap reflects analysis at snapshot_date only.
-It must not be treated as a binding architectural direction.
-
 # Initial Repository Analysis Session
 
 This document reflects repository state as of snapshot_date in AI_STATE.yaml.
 Must be considered stale after significant structural change.
+
+## Temporal Scope
+This roadmap reflects analysis at snapshot_date only.
+It must not be treated as a binding architectural direction.
 
 ## High-Level Architecture Summary
 BeatForge v2 is a desktop DAW-style sequencer with a clear split:
