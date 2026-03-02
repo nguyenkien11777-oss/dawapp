@@ -13,8 +13,8 @@ active_module:
     - beatforge/src/recorder.js
     - beatforge/src/exportManager.js
 health_estimation:
-  status: healthy
-  confidence: medium_high
+  status: structurally_consistent_snapshot
+  confidence: inference_based
   rationale:
     - recent commits target stabilization and async safety
     - transport and guard flows are explicit and centralized
