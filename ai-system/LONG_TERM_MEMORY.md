@@ -36,4 +36,8 @@ If module boundaries change, update LONG_TERM_MEMORY before architectural decisi
 ## Expansion Watchlist
 - Introducing undo/redo or multi-pattern sequencing will increase state-shape and migration complexity.
 - Adding new export formats will deepen codec/runtime dependency surface.
-- Multi-window or collaboration features would require explicit rethinking of current single-process assumptions.
+- Multi-window or collaboration features may require revisiting current single-process assumptions. Must be validated against ARCHITECTURE_V1_V2.md.
+
+## Validity Boundary
+Derived from repository snapshot_date in AI_STATE.yaml.
+Must be revalidated after structural module changes.
