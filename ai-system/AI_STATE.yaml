@@ -15,7 +15,7 @@ active_module:
     - beatforge/src-tauri/src/main.rs
     - beatforge/src/recorder.js
     - beatforge/src/exportManager.js
-   note: "May change if orchestration is modularized."
+  note: "May change if orchestration is modularized."
 health_estimation:
   status: structurally_consistent_snapshot
   confidence: inference_based
