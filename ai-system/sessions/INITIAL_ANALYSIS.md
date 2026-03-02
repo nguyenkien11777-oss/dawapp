@@ -44,7 +44,7 @@ The effective composition root is `beatforge/src/main.js`, while `beatforge/src-
 
 ## Constitutional Note
 All architecture decisions and future proposals must be validated against:
-- `/beatforge/ARCHITECTURE_V1_V2.md` (single authority).
+- ARCHITECTURE_DOC (see AGENT_PROTOCOL.md).
 
 ## Obsolescence Notice
 This document becomes partially stale after:
