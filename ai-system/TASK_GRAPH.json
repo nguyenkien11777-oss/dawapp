@@ -2,70 +2,123 @@
   "project": "BeatForge",
   "constitution": "/beatforge/ARCHITECTURE_V1_V2.md",
   "generated_at": "2026-03-02",
+  "governance": {
+    "memory_rotation_policy": {
+      "max_active_sprint_logs": 2,
+      "require_summary_before_archive": true,
+      "long_term_memory_size_bound": "maintain concise operational scope",
+      "archive_location": "ai-system/archive/"
+    },
+    "drift_detection_required_before_architecture_change": true,
+    "memory_is_advisory_not_authoritative": true
+  },
   "nodes": [
     {
       "id": "mod.frontend.main",
       "type": "module",
       "path": "beatforge/src/main.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.audio",
       "type": "module",
       "path": "beatforge/src/audioEngine.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.scheduler",
       "type": "module",
       "path": "beatforge/src/scheduler.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.recorder",
       "type": "module",
       "path": "beatforge/src/recorder.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.export",
       "type": "module",
       "path": "beatforge/src/exportManager.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.state",
       "type": "module",
       "path": "beatforge/src/sequencerState.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.ui",
       "type": "module",
       "path": "beatforge/src/ui.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.frontend.dashboard",
       "type": "module",
       "path": "beatforge/src/dashboard.js",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.backend.commands",
       "type": "module",
       "path": "beatforge/src-tauri/src/main.rs",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
     },
     {
       "id": "mod.backend.ffmpeg",
       "type": "module",
       "path": "beatforge/src-tauri/src/ffmpeg.rs",
-      "status": "completed"
+      "scan_status": "scanned",
+      "constitution_status": "unverified",
+      "regression_status": "unprotected"
+    },
+
+    {
+      "id": "task.audit.constitution-drift",
+      "type": "audit",
+      "status": "pending",
+      "description": "Re-derive architectural invariants from live code and verify compliance with /beatforge/ARCHITECTURE_V1_V2.md",
+      "depends_on": [
+        "mod.frontend.main",
+        "mod.frontend.scheduler",
+        "mod.backend.commands"
+      ]
+    },
+    {
+      "id": "task.audit.guard-parity",
+      "type": "audit",
+      "status": "pending",
+      "description": "Verify in-flight guards, async isolation, and single-flight protections remain consistent across all modules",
+      "depends_on": [
+        "mod.frontend.main",
+        "mod.frontend.recorder",
+        "mod.frontend.export"
+      ]
     },
     {
       "id": "task.regression.transport-contracts",
-      "type": "task",
+      "type": "regression",
       "status": "pending",
       "depends_on": [
         "mod.frontend.main",
@@ -74,7 +127,7 @@
     },
     {
       "id": "task.regression.invoke-contracts",
-      "type": "task",
+      "type": "regression",
       "status": "pending",
       "depends_on": [
         "mod.frontend.main",
@@ -84,7 +137,7 @@
     },
     {
       "id": "task.observability.error-telemetry",
-      "type": "task",
+      "type": "enhancement",
       "status": "pending",
       "depends_on": [
         "mod.frontend.ui",
@@ -94,7 +147,7 @@
     },
     {
       "id": "task.scaling.dashboard-index",
-      "type": "task",
+      "type": "scaling",
       "status": "pending",
       "depends_on": [
         "mod.backend.commands",
@@ -103,13 +156,20 @@
     },
     {
       "id": "task.expansion.multi-pattern-foundation",
-      "type": "task",
+      "type": "expansion",
       "status": "pending",
       "depends_on": [
         "mod.frontend.state",
         "mod.frontend.main",
         "mod.backend.commands"
       ]
+    },
+    {
+      "id": "task.memory.rotation-governance",
+      "type": "governance",
+      "status": "pending",
+      "description": "Ensure AI memory artifacts are periodically summarized and archived to prevent context bloat and decision bias",
+      "depends_on": []
     }
   ],
   "recently_modified_areas": [
