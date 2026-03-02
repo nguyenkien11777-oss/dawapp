@@ -4,6 +4,7 @@
 ARCHITECTURE_DOC = /beatforge/ARCHITECTURE_V1_V2.md
 
 Every verification must explicitly reference the relevant section heading in ARCHITECTURE_DOC
+If section headings are absent or ambiguous, reference the exact paragraph or rule text.
 
 Memory is advisory, not authoritative.
 Memory artifacts must never introduce new rules, constraints, or invariants not present in ARCHITECTURE_DOC.
