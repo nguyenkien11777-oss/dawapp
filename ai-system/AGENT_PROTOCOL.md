@@ -7,6 +7,7 @@ Every verification must explicitly reference the relevant section heading in ARC
 
 Memory is advisory, not authoritative.
 Memory artifacts must never introduce new rules, constraints, or invariants not present in ARCHITECTURE_DOC.
+This protocol itself may not define architectural constraints beyond those present in ARCHITECTURE_DOC.
 If memory and live code conflict, live code prevails and memory must be updated before further reasoning.
 Live repository code always overrides memory artifacts.
 
@@ -62,3 +63,4 @@ If ARCHITECTURE_DOC is modified:
 3. Update AI_STATE.yaml phase if required.
 4. Update LONG_TERM_MEMORY.md to remove stale assumptions.
 5. Re-run drift checks on all risk-sensitive modules.
+6. Log constitutional version change in SPRINT_LOG.md.
