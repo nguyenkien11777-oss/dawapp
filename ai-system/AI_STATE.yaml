@@ -1,0 +1,30 @@
+version: 1
+snapshot_date: 2026-03-02
+project: BeatForge
+constitutional_authority: /beatforge/ARCHITECTURE_V1_V2.md
+phase: v2_stabilized_production
+current_focus:
+  - hardening-complete with guard-centric control flow
+  - preserving deterministic behavior during incremental expansion
+active_module:
+  primary: beatforge/src/main.js
+  supporting:
+    - beatforge/src-tauri/src/main.rs
+    - beatforge/src/recorder.js
+    - beatforge/src/exportManager.js
+health_estimation:
+  status: healthy
+  confidence: medium_high
+  rationale:
+    - recent commits target stabilization and async safety
+    - transport and guard flows are explicit and centralized
+next_best_strategic_action:
+  - establish non-invasive test harness for transport transitions and invoke command contracts
+  - add targeted regression checks for project lifecycle + file containment behavior
+known_risks:
+  - ffmpeg runtime dependency can fail at system boundary
+  - no explicit automated test suite observed in repository
+  - concurrent UI actions remain sensitive to future feature additions without guard parity
+recent_edit_signal:
+  - async handler isolation updates in UI, recorder, startup
+  - backend and style changes in latest non-merge commit
