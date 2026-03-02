@@ -1,3 +1,7 @@
+## Temporal Scope
+This roadmap reflects analysis at snapshot_date only.
+It must not be treated as a binding architectural direction.
+
 # Initial Repository Analysis Session
 
 This document reflects repository state as of snapshot_date in AI_STATE.yaml.
@@ -41,3 +45,9 @@ The effective composition root is `beatforge/src/main.js`, while `beatforge/src-
 ## Constitutional Note
 All architecture decisions and future proposals must be validated against:
 - `/beatforge/ARCHITECTURE_V1_V2.md` (single authority).
+
+## Obsolescence Notice
+This document becomes partially stale after:
+- Module boundary refactors
+- Backend command surface changes
+- Transport control rewrites
