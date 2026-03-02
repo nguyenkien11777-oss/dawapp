@@ -1,5 +1,8 @@
 # Initial Repository Analysis Session
 
+This document reflects repository state as of snapshot_date in AI_STATE.yaml.
+Must be considered stale after significant structural change.
+
 ## High-Level Architecture Summary
 BeatForge v2 is a desktop DAW-style sequencer with a clear split:
 - Frontend orchestration in Vanilla JS handles transport, scheduling, recording control, and rendering of dashboard/sequencer UI.
