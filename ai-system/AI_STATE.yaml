@@ -1,7 +1,7 @@
 version: 1
 snapshot_date: 2026-03-02
 project: BeatForge
-constitutional_authority: /beatforge/ARCHITECTURE_V1_V2.md
+constitutional_authority: ARCHITECTURE_DOC
 phase: v2_stabilized_production
 phase_change_requires_constitution_review: true
 current_focus:
