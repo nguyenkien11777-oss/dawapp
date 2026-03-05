@@ -65,11 +65,16 @@ let lastClickedRecRow = null;
 let handlingClose = false;
 let inFlightRecordingPersist = false;
 let inFlightMasterExport = false;
+let inFlightExportMp3 = false;
 let inFlightSave = false;
 let inFlightDashboardAction = false;
 let inFlightAudioTool = false;
+let inFlightModalOperation = false;
 let externalMusicFile = null;
 let externalMusicName = "";
+let currentMusicObjectUrl = null;
+let renderInProgress = false;
+let renderRequested = false;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
   const { userRows, presetRows } = projectManager.state.sequencer;
@@ -90,6 +95,38 @@ function safeAsync(handler) {
   return async (...args) => {
     try { await handler(...args); } catch (err) { console.error("Unhandled UI async error:", err); }
   };
+}
+
+async function runModalOperation(task) {
+  if (inFlightModalOperation) return;
+  inFlightModalOperation = true;
+  try {
+    return await task();
+  } finally {
+    inFlightModalOperation = false;
+  }
+}
+
+function showModalError(message) {
+  return showModal({ title: "Error", html: `<p class='error'>${message}</p>`, buttons: [{ label: "OK", value: true }] });
+}
+
+function isAbsoluteLikePath(path) {
+  if (!path) return false;
+  return /^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(path);
+}
+
+function clearMusicObjectUrl() {
+  if (currentMusicObjectUrl) {
+    URL.revokeObjectURL(currentMusicObjectUrl);
+    currentMusicObjectUrl = null;
+  }
+}
+
+function setMusicSourceFromBlob(blob) {
+  clearMusicObjectUrl();
+  currentMusicObjectUrl = URL.createObjectURL(blob);
+  musicAudio.src = currentMusicObjectUrl;
 }
 
 function openMenu(menu) {
@@ -184,7 +221,7 @@ function syncTransportLocks() {
   addPresetRowBtn.disabled = locked;
 }
 
-function transitionTransport(nextState) {
+async function transitionTransport(nextState) {
   if (nextState === transportState) return;
   if (transportState === TRANSPORT_STATE.MASTER_RECORDING && nextState === TRANSPORT_STATE.PLAYING) return;
 
@@ -200,7 +237,7 @@ function transitionTransport(nextState) {
   transportState = nextState;
   syncTransportUi();
   syncTransportLocks();
-  renderSequencer();
+  await renderSequencer();
 }
 
 function clearMasterTimer() {
@@ -219,14 +256,25 @@ async function loadMusicFromState() {
   externalMusicName = "";
   const path = projectManager.state.music.trackPath;
   if (!path) {
+    clearMusicObjectUrl();
+    musicAudio.removeAttribute("src");
+    stopMusicPlayback();
+    syncMusicUi();
+    return;
+  }
+  if (isAbsoluteLikePath(path)) {
+    ui.log("Ignored legacy absolute music path in project state.");
+    projectManager.state.music.trackPath = null;
+    projectManager.state.music.enabled = false;
+    projectManager.markDirty();
+    clearMusicObjectUrl();
     musicAudio.removeAttribute("src");
     stopMusicPlayback();
     syncMusicUi();
     return;
   }
   const bytes = await projectManager.readProjectFileBytes(path);
-  const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)]));
-  musicAudio.src = blobUrl;
+  setMusicSourceFromBlob(new Blob([new Uint8Array(bytes)]));
   syncMusicUi();
 }
 
@@ -274,6 +322,7 @@ async function persistRecordedBuffer(rowIndex, buffer) {
 }
 
 async function applyAudioTool(tool, payload = {}) {
+  if (inFlightSave || inFlightRecordingPersist) return ui.log("Cannot apply audio tools while save/persist is in progress.");
   if (lastClickedRecRow == null || inFlightAudioTool) return ui.log("Select a REC row first.");
   const row = projectManager.state.sequencer.userRows[lastClickedRecRow];
   if (!row?.samplePath) return ui.log("Selected REC row has no recording.");
@@ -316,59 +365,72 @@ async function applyAudioTool(tool, payload = {}) {
 }
 
 async function renderSequencer() {
-  if (!projectManager.currentProject) return;
-  const state = projectManager.state.sequencer;
-  const samples = await loadSamplesForState();
-  bpmInput.value = String(state.bpm ?? DEFAULT_BPM);
-  bpmValue.textContent = String(state.bpm ?? DEFAULT_BPM);
-  scheduler.updateTempo({ bpm: state.bpm });
+  if (renderInProgress) {
+    renderRequested = true;
+    return;
+  }
+  renderInProgress = true;
+  try {
+    do {
+      renderRequested = false;
+      if (!projectManager.currentProject) break;
+      const state = projectManager.state.sequencer;
+      const samples = await loadSamplesForState();
+      bpmInput.value = String(state.bpm ?? DEFAULT_BPM);
+      bpmValue.textContent = String(state.bpm ?? DEFAULT_BPM);
+      scheduler.updateTempo({ bpm: state.bpm });
 
-  ui.renderRows(state.userRows, ui.recRows, "rec", {
-    recordingRow: activeRecRow,
-    lockRec: isTransportActive(),
-    onRec: async (rowIndex) => {
-      lastClickedRecRow = rowIndex;
-      if (!projectManager.currentProject || isTransportActive()) return;
-      if (recorder.isRecording && activeRecRow !== rowIndex) return;
-      try {
-        if (recorder.isRecording && activeRecRow === rowIndex) return recorder.stop();
-        await audioEngine.ensureRunning();
-        await recorder.start(rowIndex);
-      } catch (error) {
-        activeRecRow = null;
-        await renderSequencer();
-        ui.log(`REC failed: ${error?.message ?? "unknown error"}`);
-      }
-    },
-    onStep: (_, row, step) => { lastClickedRecRow = row; state.userRows[row].steps[step] = !state.userRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
-    onDelete: (_, row) => { lastClickedRecRow = row; if (isTransportActive() || recorder.isRecording) return; state.userRows.splice(row, 1); state.userRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
-    onVolume: (_, row, value) => { lastClickedRecRow = row; state.userRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
-    onMute: (_, row) => { lastClickedRecRow = row; state.userRows[row].mute = !state.userRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); }
-  });
+      ui.renderRows(state.userRows, ui.recRows, "rec", {
+        recordingRow: activeRecRow,
+        lockRec: isTransportActive(),
+        onRec: async (rowIndex) => {
+          lastClickedRecRow = rowIndex;
+          if (!projectManager.currentProject || isTransportActive()) return;
+          if (recorder.isRecording && activeRecRow !== rowIndex) return;
+          try {
+            if (recorder.isRecording && activeRecRow === rowIndex) return recorder.stop();
+            await audioEngine.ensureRunning();
+            await recorder.start(rowIndex);
+          } catch (error) {
+            activeRecRow = null;
+            await renderSequencer();
+            ui.log(`REC failed: ${error?.message ?? "unknown error"}`);
+          }
+        },
+        onStep: (_, row, step) => { lastClickedRecRow = row; state.userRows[row].steps[step] = !state.userRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
+        onDelete: (_, row) => { lastClickedRecRow = row; if (isTransportActive() || recorder.isRecording) return; state.userRows.splice(row, 1); state.userRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
+        onVolume: (_, row, value) => { lastClickedRecRow = row; state.userRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
+        onMute: (_, row) => { lastClickedRecRow = row; state.userRows[row].mute = !state.userRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); }
+      });
 
-  ui.renderRows(state.presetRows, ui.presetRows, "preset", {
-    samples,
-    lockSoundChange: isTransportActive(),
-    onStep: (_, row, step) => { state.presetRows[row].steps[step] = !state.presetRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
-    onDelete: (_, row) => { if (isTransportActive()) return; state.presetRows.splice(row, 1); state.presetRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
-    onVolume: (_, row, value) => { state.presetRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
-    onMute: (_, row) => { state.presetRows[row].mute = !state.presetRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); },
-    onSound: async (row, sound) => {
-      if (isTransportActive()) return;
-      state.presetRows[row].sound = sound || null;
-      projectManager.markDirty();
-      updateHeader();
-      const buffer = sampleBuffers.get(sound);
-      if (buffer) {
-        await audioEngine.ensureRunning();
-        audioEngine.playBuffer({ buffer, gainValue: state.presetRows[row].volume, when: audioEngine.context.currentTime });
-      }
-    }
-  });
+      ui.renderRows(state.presetRows, ui.presetRows, "preset", {
+        samples,
+        lockSoundChange: isTransportActive(),
+        onStep: (_, row, step) => { state.presetRows[row].steps[step] = !state.presetRows[row].steps[step]; projectManager.markDirty(); updateHeader(); renderSequencer(); },
+        onDelete: (_, row) => { if (isTransportActive()) return; state.presetRows.splice(row, 1); state.presetRows.forEach((r, i) => { r.id = i; }); projectManager.markDirty(); updateHeader(); renderSequencer(); },
+        onVolume: (_, row, value) => { state.presetRows[row].volume = value; projectManager.markDirty(); updateHeader(); },
+        onMute: (_, row) => { state.presetRows[row].mute = !state.presetRows[row].mute; projectManager.markDirty(); updateHeader(); renderSequencer(); },
+        onSound: async (row, sound) => {
+          if (isTransportActive()) return;
+          state.presetRows[row].sound = sound || null;
+          projectManager.markDirty();
+          updateHeader();
+          const buffer = sampleBuffers.get(sound);
+          if (buffer) {
+            await audioEngine.ensureRunning();
+            audioEngine.playBuffer({ buffer, gainValue: state.presetRows[row].volume, when: audioEngine.context.currentTime });
+          }
+        }
+      });
 
-  syncTransportLocks();
-  syncMusicUi();
+      syncTransportLocks();
+      syncMusicUi();
+    } while (renderRequested);
+  } finally {
+    renderInProgress = false;
+  }
 }
+
 
 async function openProject(name) {
   await projectManager.loadProject(name);
@@ -391,19 +453,19 @@ async function refreshDashboard() {
   await dashboard.refresh({
     open: safeAsync(async (name) => runDashboardAction(async () => openProject(name))),
     rename: safeAsync(async (name) => runDashboardAction(async () => {
-      const newName = await promptText("Rename project", "Project name", name);
+      const newName = await runModalOperation(() => promptText("Rename project", "Project name", name));
       if (!newName || newName === name) return;
       await projectManager.renameProject(name, newName);
       await refreshDashboard();
     })),
     duplicate: safeAsync(async (name) => runDashboardAction(async () => {
-      const target = await promptText("Duplicate project as", "New project name", `${name}_copy`);
+      const target = await runModalOperation(() => promptText("Duplicate project as", "New project name", `${name}_copy`));
       if (!target) return;
-      try { await projectManager.duplicateProject(name, target); } catch { await showModal({ title: "Duplicate failed", html: "<p class='error'>Project name already exists.</p>", buttons: [{ label: "OK", value: true }] }); }
+      try { await projectManager.duplicateProject(name, target); } catch { await runModalOperation(() => showModalError("Project name already exists.")); }
       await refreshDashboard();
     })),
     delete: safeAsync(async (name) => runDashboardAction(async () => {
-      const yes = await showModal({ title: "Delete Project", html: `<p>Delete ${name}?</p>`, buttons: [{ label: "Cancel", value: false }, { label: "Delete", value: true }] });
+      const yes = await runModalOperation(() => showModal({ title: "Delete Project", html: `<p>Delete ${name}?</p>`, buttons: [{ label: "Cancel", value: false }, { label: "Delete", value: true }] }));
       if (!yes) return;
       await projectManager.deleteProject(name);
       await refreshDashboard();
@@ -413,9 +475,10 @@ async function refreshDashboard() {
 
 async function maybeIncludeMusicBeforeSave() {
   if (!externalMusicFile || projectManager.state.music.trackPath) return true;
-  const include = await showModal({ title: "Include imported music in project?", html: "<p>Include imported music in this project?</p>", buttons: [{ label: "No", value: false }, { label: "Yes", value: true }] });
+  const include = await runModalOperation(() => showModal({ title: "Include imported music in project?", html: "<p>Include imported music in this project?</p>", buttons: [{ label: "No", value: false }, { label: "Yes", value: true }] }));
   if (!include) {
     stopMusicPlayback();
+    clearMusicObjectUrl();
     musicAudio.removeAttribute("src");
     externalMusicFile = null;
     externalMusicName = "";
@@ -468,7 +531,7 @@ optionMenuBtn.onclick = () => openMenu(optionMenu);
 menuSave.onclick = safeAsync(async () => { closeMenus(); await saveCurrentProject(); });
 menuSaveAs.onclick = safeAsync(async () => {
   closeMenus();
-  const name = await promptText("Save As", "New project name", `${projectManager.currentProject}_copy`);
+  const name = await runModalOperation(() => promptText("Save As", "New project name", `${projectManager.currentProject}_copy`));
   if (!name) return;
   try {
     await maybeIncludeMusicBeforeSave();
@@ -476,12 +539,12 @@ menuSaveAs.onclick = safeAsync(async () => {
     updateHeader();
     await refreshDashboard();
   } catch {
-    await showModal({ title: "Save As failed", html: "<p class='error'>Project name already exists.</p>", buttons: [{ label: "OK", value: true }] });
+    await runModalOperation(() => showModalError("Project name already exists."));
   }
 });
 menuRename.onclick = safeAsync(async () => {
   closeMenus();
-  const name = await promptText("Rename", "Project name", projectManager.currentProject ?? "");
+  const name = await runModalOperation(() => promptText("Rename", "Project name", projectManager.currentProject ?? ""));
   if (!name || name === projectManager.currentProject) return;
   await projectManager.renameProject(projectManager.currentProject, name);
   updateHeader();
@@ -490,6 +553,7 @@ menuRename.onclick = safeAsync(async () => {
 
 toolTrim.onclick = safeAsync(async () => {
   closeMenus();
+  if (inFlightSave || inFlightRecordingPersist) return ui.log("Cannot apply audio tools while save/persist is in progress.");
   const state = projectManager.state.sequencer.userRows[lastClickedRecRow ?? -1];
   const max = sampleBuffers.get(state?.samplePath)?.duration ?? 0;
   modalTitle.textContent = "Trim recording";
@@ -508,6 +572,7 @@ toolNormalize.onclick = safeAsync(async () => { closeMenus(); await applyAudioTo
 toolReverse.onclick = safeAsync(async () => { closeMenus(); await applyAudioTool("reverse"); });
 toolGain.onclick = safeAsync(async () => {
   closeMenus();
+  if (inFlightSave || inFlightRecordingPersist) return ui.log("Cannot apply audio tools while save/persist is in progress.");
   modalTitle.textContent = "Gain";
   modalBody.innerHTML = "<div class='modal-body-grid'><label>Gain dB (-24 to 24)<input id='gainDb' type='number' min='-24' max='24' step='0.1' value='0'/></label></div>";
   modalActions.innerHTML = "<button id='modalCancel'>Cancel</button><button id='modalOk'>Apply</button>";
@@ -522,13 +587,13 @@ toolGain.onclick = safeAsync(async () => {
 
 newProjectBtn.onclick = safeAsync(async () => {
   if (inFlightDashboardAction) return;
-  const name = await promptText("New project", "Project name", `project_${Date.now()}`);
+  const name = await runModalOperation(() => promptText("New project", "Project name", `project_${Date.now()}`));
   if (!name) return;
   await runDashboardAction(async () => { await projectManager.createProject(name); await openProject(name); });
 });
 
 backBtn.onclick = safeAsync(async () => {
-  transitionTransport(TRANSPORT_STATE.IDLE);
+  await transitionTransport(TRANSPORT_STATE.IDLE);
   ui.showDashboard();
   await refreshDashboard();
 });
@@ -572,13 +637,13 @@ bpmInput.oninput = () => {
 playBtn.onclick = safeAsync(async () => {
   if (transportState === TRANSPORT_STATE.MASTER_RECORDING) return;
   await audioEngine.ensureRunning();
-  transitionTransport(transportState === TRANSPORT_STATE.IDLE ? TRANSPORT_STATE.PLAYING : TRANSPORT_STATE.IDLE);
+  await transitionTransport(transportState === TRANSPORT_STATE.IDLE ? TRANSPORT_STATE.PLAYING : TRANSPORT_STATE.IDLE);
 });
 
 recordMasterBtn.onclick = safeAsync(async () => {
   await audioEngine.ensureRunning();
   if (transportState !== TRANSPORT_STATE.MASTER_RECORDING) {
-    transitionTransport(TRANSPORT_STATE.MASTER_RECORDING);
+    await transitionTransport(TRANSPORT_STATE.MASTER_RECORDING);
     elapsed = 0;
     ui.setTimer(0);
     clearMasterTimer();
@@ -586,8 +651,14 @@ recordMasterBtn.onclick = safeAsync(async () => {
     return;
   }
 
+  if (inFlightSave) {
+    await showModalError("Save in progress. Please wait.");
+    return;
+  }
   if (inFlightMasterExport) return;
+  if (inFlightExportMp3) return;
   inFlightMasterExport = true;
+  inFlightExportMp3 = true;
   clearMasterTimer();
   ui.setTimer(0);
   try {
@@ -606,8 +677,9 @@ recordMasterBtn.onclick = safeAsync(async () => {
   } catch (error) {
     ui.log(`Master record finalize failed: ${error?.message ?? "unknown error"}`);
   } finally {
+    inFlightExportMp3 = false;
     inFlightMasterExport = false;
-    transitionTransport(TRANSPORT_STATE.IDLE);
+    await transitionTransport(TRANSPORT_STATE.IDLE);
   }
 });
 
@@ -618,12 +690,13 @@ musicFileInput.onchange = safeAsync(async () => {
   externalMusicFile = file;
   externalMusicName = file.name;
   projectManager.state.music.trackPath = null;
-  musicAudio.src = URL.createObjectURL(file);
+  setMusicSourceFromBlob(file);
   projectManager.markDirty();
   syncMusicUi();
 });
 musicRemoveBtn.onclick = safeAsync(async () => {
   stopMusicPlayback();
+  clearMusicObjectUrl();
   musicAudio.removeAttribute("src");
   externalMusicFile = null;
   externalMusicName = "";
@@ -662,7 +735,7 @@ musicAudio.onplay = () => vinylDisc.classList.add("spinning");
 syncTransportUi();
 syncTransportLocks();
 
-(async () => {
+async function registerCloseHandler() {
   await appWindow.onCloseRequested(async (event) => {
     if (handlingClose) return;
     if (inFlightSave) {
@@ -674,18 +747,30 @@ syncTransportLocks();
     event.preventDefault();
     handlingClose = true;
     try {
-      const shouldSave = await showModal({ title: "Unsaved changes", html: "<p>Save before closing?</p>", buttons: [{ label: "Cancel", value: null }, { label: "No", value: false }, { label: "Save", value: true }] });
+      const shouldSave = await runModalOperation(() => showModal({ title: "Unsaved changes", html: "<p>Save before closing?</p>", buttons: [{ label: "Cancel", value: null }, { label: "No", value: false }, { label: "Save", value: true }] }));
       if (shouldSave === true) {
         const saved = await saveCurrentProject();
-        if (saved) await appWindow.close();
+        if (saved) {
+          clearMusicObjectUrl();
+          await appWindow.close();
+        }
       } else if (shouldSave === false) {
+        clearMusicObjectUrl();
         await appWindow.close();
       }
     } finally {
       handlingClose = false;
     }
   });
+}
 
+(async () => {
+  try {
+    await registerCloseHandler();
   ui.showDashboard();
   await refreshDashboard();
+  } catch (err) {
+    console.error("Startup failure", err);
+    await showModalError("App failed to initialize.");
+  }
 })();

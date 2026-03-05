@@ -32,10 +32,13 @@ export class ProjectManager {
 
   async saveAsProject(newName) {
     if (!this.currentProject) return;
-    await tauriInvoke("duplicate_project", { source: this.currentProject, target: newName });
+    const previousProject = this.currentProject;
+    const content = JSON.stringify({ ...this.state, meta: { ...this.state.meta, name: newName } }, null, 2);
+    await tauriInvoke("duplicate_project", { source: previousProject, target: newName });
+    await tauriInvoke("save_project", { project: newName, content });
     this.currentProject = newName;
     this.state.meta.name = newName;
-    await this.saveProject();
+    this.clearDirty();
   }
 
   async duplicateProject(source, target) { await tauriInvoke("duplicate_project", { source, target }); }
