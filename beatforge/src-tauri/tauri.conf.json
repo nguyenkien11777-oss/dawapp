@@ -4,14 +4,15 @@
   "version": "0.1.0",
   "identifier": "com.beatforge.app",
   "build": {
-  "beforeDevCommand": "npm run dev",
-  "beforeBuildCommand": "npm run build",
-  "devUrl": "http://localhost:5173",
-  "frontendDist": "../dist"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "BeatForge",
         "width": 1200,
         "height": 760,
