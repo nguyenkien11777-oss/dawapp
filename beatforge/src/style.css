@@ -8,16 +8,36 @@ button,input,select{background:var(--panel);color:var(--text);border:1px solid #
 .project-card{background:var(--panel);padding:12px;border-radius:8px}
 .topbar{display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid #2f3750}
 .menu-left,.head-right{display:flex;gap:8px;align-items:center}
-.tempo-row{display:flex;justify-content:flex-end;gap:12px;padding:12px}
-main{padding:12px;max-height:calc(100vh - 220px);overflow:auto}
+.menu{position:relative}
+.dropdown{position:absolute;top:42px;left:0;min-width:190px;background:#151824;border:1px solid #2f3750;border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:4px;z-index:20}
+.dropdown-title{font-size:12px;color:var(--muted);padding:4px 8px}
+.dropdown-label{font-size:12px;padding:6px 8px}
+.tempo-row{display:flex;justify-content:flex-end;gap:12px;padding:12px;align-items:center}
+.bpm-value{min-width:50px;text-align:right;font-size:24px;font-weight:700}
+main{padding:12px;max-height:calc(100vh - 240px);overflow:auto}
 .rows{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
 .seq-row{display:flex;gap:8px;align-items:flex-start;background:var(--panel);padding:8px;border-radius:8px}
 .row-controls{display:flex;gap:6px;align-items:center;min-width:300px}
+.row-controls select{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .steps{display:grid;grid-template-columns:repeat(16, minmax(32px,1fr));gap:4px;flex:1}
 .step.on{background:var(--accent)}
 .step.playing{outline:2px solid #3cff8f}
 .transport{position:fixed;left:0;right:0;bottom:0;padding:12px;background:#0f1220;border-top:1px solid #2f3750;display:flex;gap:12px;align-items:center}
 #recordMasterBtn.recording{background:var(--danger);animation:pulse .8s infinite}
 #statusLog{margin:0;padding:8px 12px 80px;color:var(--muted);font-size:12px;white-space:pre-wrap}
-select {max-width: 160px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;}
+.music-player{background:var(--panel);padding:12px;border-radius:10px;margin-bottom:24px}
+.music-tools,.music-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.vinyl-wrap{position:relative;display:flex;justify-content:center;align-items:center;padding:18px 0}
+.vinyl-disc{width:160px;height:160px;border-radius:999px;background:radial-gradient(circle,#333 8%,#111 22%,#1a1a1a 30%,#000 70%);border:2px solid #444}
+.vinyl-disc.spinning{animation:spin 2s linear infinite}
+.track-arc{position:absolute;top:0;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:translateY(-6px);font-size:13px;color:var(--muted)}
+.modal-overlay{position:fixed;inset:0;background:rgba(6,9,17,.62);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-box{width:min(420px,92vw);background:#171c2b;border:1px solid #2f3750;border-radius:12px;padding:14px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.modal-body-grid{display:grid;gap:8px}
+.modal-body-grid input{width:100%}
+.error{color:#ff8ea7;font-size:13px}
+*{scrollbar-width:none}
+*::-webkit-scrollbar{width:0;height:0}
 @keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { MAX_MASTER_GAIN, STEPS, SUBDIVISIONS, TARGET_PEAK } from "./constants.js";
+import { MAX_MASTER_GAIN, STEPS, TARGET_PEAK } from "./constants.js";
 
 const tauriInvoke = (cmd, args = {}) => invoke(cmd, args);
 
@@ -77,8 +77,8 @@ export class ExportManager {
   }
 
   async renderMasterWav() {
-    const { bpm, subdivision, userRows, presetRows } = this.projectManager.state.sequencer;
-    const stepDuration = (60 / bpm) / SUBDIVISIONS[subdivision];
+    const { bpm, userRows, presetRows } = this.projectManager.state.sequencer;
+    const stepDuration = (60 / bpm) / 4;
     const duration = STEPS * stepDuration;
     const sr = this.audioEngine.context.sampleRate;
     const offline = new OfflineAudioContext(2, Math.ceil(duration * sr), sr);
