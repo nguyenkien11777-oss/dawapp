@@ -1,6 +1,5 @@
 import {
   DEFAULT_BPM,
-  DEFAULT_SUBDIVISION,
   PRESET_ROWS_DEFAULT,
   PRESET_ROWS_MAX,
   REC_ROWS_DEFAULT,
@@ -28,6 +27,14 @@ const mkPresetRow = (id, sound = null) => ({
   sound
 });
 
+const defaultMusic = () => ({
+  trackPath: null,
+  enabled: false,
+  mode: "independent",
+  volume: 1,
+  startOffset: 0
+});
+
 export class SequencerState {
   constructor() {
     this.meta = {
@@ -37,11 +44,11 @@ export class SequencerState {
     };
     this.sequencer = {
       bpm: DEFAULT_BPM,
-      subdivision: DEFAULT_SUBDIVISION,
       steps: STEPS,
       userRows: Array.from({ length: REC_ROWS_DEFAULT }, (_, i) => mkRecRow(i)),
       presetRows: Array.from({ length: PRESET_ROWS_DEFAULT }, (_, i) => mkPresetRow(i))
     };
+    this.music = defaultMusic();
     this.render = {
       hasMasterWav: false,
       lastExportedAt: null
@@ -54,6 +61,7 @@ export class SequencerState {
     state.sequencer.steps = STEPS;
     state.sequencer.userRows = (state.sequencer.userRows ?? []).map((row, i) => ({ ...mkRecRow(i), ...row, id: i, steps: (row.steps ?? mkSteps()).slice(0, STEPS) }));
     state.sequencer.presetRows = (state.sequencer.presetRows ?? []).map((row, i) => ({ ...mkPresetRow(i), ...row, id: i, steps: (row.steps ?? mkSteps()).slice(0, STEPS) }));
+    state.music = { ...defaultMusic(), ...(state.music ?? {}) };
     return state;
   }
 
@@ -61,9 +69,8 @@ export class SequencerState {
     this.meta.updatedAt = new Date().toISOString();
   }
 
-  setTempo(bpm, subdivision) {
+  setTempo(bpm) {
     this.sequencer.bpm = bpm;
-    this.sequencer.subdivision = subdivision;
     this.touch();
   }
 

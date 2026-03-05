@@ -12,12 +12,5 @@ export const TARGET_PEAK = 0.891;
 export const MAX_MASTER_GAIN = 0.7;
 export const FADE_SECONDS = 0.005;
 
-export const SUBDIVISIONS = {
-  "1/4": 1,
-  "1/8": 2,
-  "1/16": 4,
-  "1/32": 8
-};
-
 export const DEFAULT_BPM = 120;
-export const DEFAULT_SUBDIVISION = "1/16";
+export const BPM_PRESETS = [95, 100, 120, 130, 140, 160, 170];

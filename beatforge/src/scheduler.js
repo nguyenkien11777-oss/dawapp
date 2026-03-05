@@ -1,4 +1,4 @@
-import { LOOKAHEAD_MS, SCHEDULE_AHEAD_TIME, STEPS, SUBDIVISIONS } from "./constants.js";
+import { LOOKAHEAD_MS, SCHEDULE_AHEAD_TIME, STEPS } from "./constants.js";
 
 export class Scheduler {
   constructor(audioEngine, onStep) {
@@ -8,19 +8,16 @@ export class Scheduler {
     this.currentStep = 0;
     this.nextStepTime = 0;
     this.bpm = 120;
-    this.subdivision = "1/16";
     this.isPlaying = false;
     this.runId = 0;
   }
 
-  updateTempo({ bpm, subdivision }) {
+  updateTempo({ bpm }) {
     this.bpm = Math.max(20, Math.min(300, Number(bpm) || 120));
-    if (SUBDIVISIONS[subdivision]) this.subdivision = subdivision;
   }
 
   get stepDuration() {
-    const secondsPerBeat = 60 / this.bpm;
-    return secondsPerBeat / SUBDIVISIONS[this.subdivision];
+    return (60 / this.bpm) / 4;
   }
 
   start() {

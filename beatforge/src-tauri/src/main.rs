@@ -12,7 +12,6 @@ struct ProjectCard {
     created: String,
     modified: String,
     bpm: u64,
-    subdivision: String,
     row_count: usize,
     has_master: bool,
 }
@@ -111,11 +110,6 @@ fn list_project_cards() -> Result<Vec<ProjectCard>, String> {
             .pointer("/sequencer/bpm")
             .and_then(Value::as_u64)
             .unwrap_or(120);
-        let subdivision = v
-            .pointer("/sequencer/subdivision")
-            .and_then(Value::as_str)
-            .unwrap_or("1/16")
-            .to_string();
         let user_rows = v
             .pointer("/sequencer/userRows")
             .and_then(Value::as_array)
@@ -139,7 +133,6 @@ fn list_project_cards() -> Result<Vec<ProjectCard>, String> {
                 .unwrap_or("")
                 .to_string(),
             bpm,
-            subdivision,
             row_count: user_rows + preset_rows,
             has_master: entry.path().join("master.wav").exists(),
         });
@@ -151,6 +144,10 @@ fn list_project_cards() -> Result<Vec<ProjectCard>, String> {
 
 #[tauri::command]
 fn create_project(name: String) -> Result<String, String> {
+    let dir = app_root()?.join("projects").join(&name);
+    if dir.exists() {
+        return Err("project already exists".into());
+    }
     project_dir(&name)?;
     Ok(name)
 }
@@ -173,6 +170,9 @@ fn load_project(project: String) -> Result<String, String> {
 fn rename_project(project: String, new_name: String) -> Result<(), String> {
     let src = app_root()?.join("projects").join(project);
     let dst = app_root()?.join("projects").join(new_name);
+    if dst.exists() {
+        return Err("project already exists".into());
+    }
     fs::rename(src, dst).map_err(|e| e.to_string())
 }
 
@@ -188,6 +188,10 @@ fn delete_project(project: String) -> Result<(), String> {
 #[tauri::command]
 fn duplicate_project(source: String, target: String) -> Result<(), String> {
     let src = app_root()?.join("projects").join(source);
+    let dst = app_root()?.join("projects").join(&target);
+    if dst.exists() {
+        return Err("project already exists".into());
+    }
     let dst = project_dir(&target)?;
     for entry in fs::read_dir(src).map_err(|e| e.to_string())? {
         let e = entry.map_err(|e| e.to_string())?;
@@ -227,6 +231,42 @@ fn export_mp3_from_master(project: String) -> Result<String, String> {
     let mp3_path = dir.join("renders").join("export.mp3");
     ffmpeg::encode_mp3(&wav_path, &mp3_path)?;
     Ok(mp3_path.to_string_lossy().to_string())
+}
+
+
+#[tauri::command]
+fn export_mp3_from_master_to_path(project: String, output_path: String) -> Result<String, String> {
+    let dir = project_dir(&project)?;
+    let wav_path = dir.join("master.wav");
+    if !wav_path.exists() {
+        return Err("master.wav not found".into());
+    }
+    let out = PathBuf::from(output_path);
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    ffmpeg::encode_mp3(&wav_path, &out)?;
+    Ok(out.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn pick_save_mp3_path(default_name: String) -> Result<Option<String>, String> {
+    let file = rfd::FileDialog::new()
+        .set_file_name(&default_name)
+        .add_filter("MP3", &["mp3"])
+        .save_file();
+    Ok(file.map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn write_project_music_file(project: String, file_name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let sanitized = Path::new(&file_name).file_name().ok_or("invalid file name")?.to_string_lossy().to_string();
+    let relative = PathBuf::from("music").join(sanitized);
+    let root = project_dir(&project)?;
+    fs::create_dir_all(root.join("music")).map_err(|e| e.to_string())?;
+    let target = root.join(&relative);
+    safe_write(&target, &bytes)?;
+    Ok(relative.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -316,6 +356,9 @@ fn main() {
             write_recording_wav,
             write_master_wav,
             export_mp3_from_master,
+            export_mp3_from_master_to_path,
+            pick_save_mp3_path,
+            write_project_music_file,
             list_drum_samples,
             read_file_bytes,
             read_project_file_bytes,

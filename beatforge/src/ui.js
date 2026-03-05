@@ -19,7 +19,7 @@ export class UI {
     cards.forEach((card) => {
       const el = document.createElement("article");
       el.className = "project-card";
-      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm} · ${card.subdivision}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p><p>Created ${card.created || "-"}</p><p>Modified ${card.modified || "-"}</p>
+      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p><p>Created ${card.created || "-"}</p><p>Modified ${card.modified || "-"}</p>
       <div><button data-a='open'>Open</button><button data-a='rename'>Rename</button><button data-a='duplicate'>Duplicate</button><button data-a='delete'>Delete</button></div>`;
       el.querySelector("[data-a='open']").onclick = () => handlers.open(card.name);
       el.querySelector("[data-a='rename']").onclick = () => handlers.rename(card.name);
@@ -48,8 +48,8 @@ export class UI {
       const wrap = document.createElement("div");
       wrap.className = "seq-row";
       const controls = document.createElement("div");
-      controls.className = "row-controls";
-      controls.innerHTML = `<button data-del>-</button>${type === "rec" ? "<button data-rec>REC</button>" : ""}<input data-vol type='range' min='0' max='1' step='0.01' value='${row.volume}' /><button data-mute>${row.mute ? "Unmute" : "Mute"}</button>${type === "preset" ? "<select data-sound></select>" : ""}`;
+      controls.className = `row-controls ${type === "rec" ? "rec-strip" : "preset-strip"}`;
+      controls.innerHTML = `<button data-del title='Delete Row'>−</button>${type === "rec" ? "<button data-rec title='Record Row'>REC</button>" : ""}<input data-vol type='range' min='0' max='1' step='0.01' value='${row.volume}' title='Volume' /><button data-mute>${row.mute ? "Unmute" : "Mute"}</button>${type === "preset" ? "<select data-sound></select>" : ""}`;
       wrap.appendChild(controls);
       const steps = document.createElement("div");
       steps.className = "steps";
@@ -76,7 +76,10 @@ export class UI {
         (opts.samples ?? []).forEach((sample) => {
           const option = document.createElement("option");
           option.value = sample;
-          option.textContent = sample.split(/[\\/]/).pop();
+          const rawName = sample.split(/[\\/]/).pop() ?? sample;
+          const noExt = rawName.replace(/\.wav$/i, "");
+          option.textContent = noExt.length > 20 ? `${noExt.slice(0, 17)}...` : noExt;
+          option.title = noExt;
           select.appendChild(option);
         });
         select.value = row.sound ?? "";
