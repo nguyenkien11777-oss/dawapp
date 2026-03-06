@@ -611,6 +611,18 @@ async function saveCurrentProject() {
   }
 }
 
+async function confirmSaveBeforeLeave({ promptHtml }) {
+  if (!projectManager.dirty) return true;
+  const choice = await runModalOperation(() => showModal({
+    title: "Unsaved changes",
+    html: promptHtml,
+    buttons: [{ label: "Cancel", value: null }, { label: "No", value: false }, { label: "Save", value: true }],
+  }));
+  if (choice === true) return saveCurrentProject();
+  if (choice === false) return true;
+  return false;
+}
+
 recorder.on("record-start", async ({ cellIndex }) => {
   activeRecRow = cellIndex;
   await renderSequencer();
@@ -690,6 +702,8 @@ newProjectBtn.onclick = safeAsync(async () => {
 });
 
 backBtn.onclick = safeAsync(async () => {
+  const ok = await confirmSaveBeforeLeave({ promptHtml: "<p>Save before returning to Dashboard?</p>" });
+  if (!ok) return;
   await transitionTransport(TRANSPORT_STATE.IDLE);
   ui.showDashboard();
   await refreshDashboard();
@@ -767,7 +781,11 @@ recordMasterBtn.onclick = safeAsync(async () => {
     const selected = await projectManager.chooseMp3SavePath(`${projectManager.currentProject}-pipi.mp3`);
     if (selected) {
       const out = await projectManager.exportMasterMp3ToPath(selected);
-      ui.log(`Exported MP3: ${out}`);
+      const exists = await projectManager.pathExists(out);
+      ui.log(exists ? `Exported MP3: ${out}` : `Export completed but file not found at expected path: ${out}`);
+      if (!exists) {
+        await runModalOperation(() => showModalError("Export path not found after save. Please try another folder/path."));
+      }
     } else {
       ui.log("Export canceled. master.wav kept in project.");
     }
@@ -899,18 +917,11 @@ async function registerCloseHandler() {
       ui.log("Save in progress");
       return;
     }
-    if (!projectManager.dirty) return;
     event.preventDefault();
     handlingClose = true;
     try {
-      const shouldSave = await runModalOperation(() => showModal({ title: "Unsaved changes", html: "<p>Save before closing?</p>", buttons: [{ label: "Cancel", value: null }, { label: "No", value: false }, { label: "Save", value: true }] }));
-      if (shouldSave === true) {
-        const saved = await saveCurrentProject();
-        if (saved) {
-          clearMusicObjectUrl();
-          await appWindow.close();
-        }
-      } else if (shouldSave === false) {
+      const ok = await confirmSaveBeforeLeave({ promptHtml: "<p>Save before closing?</p>" });
+      if (ok) {
         clearMusicObjectUrl();
         await appWindow.close();
       }
@@ -922,7 +933,11 @@ async function registerCloseHandler() {
 
 (async () => {
   try {
-    await registerCloseHandler();
+    try {
+      await registerCloseHandler();
+    } catch (err) {
+      console.warn("Close-handler registration failed; app will continue without close intercept:", err);
+    }
   ui.showDashboard();
   await refreshDashboard();
   } catch (err) {

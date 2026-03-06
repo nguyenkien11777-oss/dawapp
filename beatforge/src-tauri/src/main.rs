@@ -241,12 +241,20 @@ fn export_mp3_from_master_to_path(project: String, output_path: String) -> Resul
     if !wav_path.exists() {
         return Err("master.wav not found".into());
     }
-    let out = PathBuf::from(output_path);
+    let mut out = PathBuf::from(output_path);
+    if out.extension().is_none() {
+        out.set_extension("mp3");
+    }
     if let Some(parent) = out.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     ffmpeg::encode_mp3(&wav_path, &out)?;
     Ok(out.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn path_exists(path: String) -> Result<bool, String> {
+    Ok(PathBuf::from(path).exists())
 }
 
 #[tauri::command]
@@ -362,7 +370,8 @@ fn main() {
             list_drum_samples,
             read_file_bytes,
             read_project_file_bytes,
-            touch_recent_project
+            touch_recent_project,
+            path_exists
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
