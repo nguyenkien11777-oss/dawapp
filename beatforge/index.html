@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BeatForge v2</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -36,6 +37,7 @@
               <button id="toolGain">🎚 Gain</button>
               <div class="dropdown-title">Music Player Settings</div>
               <label class="dropdown-label"><input id="musicSyncToggle" type="checkbox" /> Sync With Beat</label>
+              <label class="dropdown-label"><input id="musicSmoothSeekToggle" type="checkbox" checked /> Smooth Seek (low-power)</label>
             </div>
           </div>
         </div>
@@ -81,11 +83,16 @@
             <input id="musicFileInput" type="file" accept="audio/*" hidden />
             <button id="musicImportBtn">+ Import Track</button>
             <button id="musicRemoveBtn">🗑 Remove</button>
-            <label class="toggle-inline"><input id="musicEnabled" type="checkbox" /> Play</label>
+            <button id="musicPlayToggleBtn" type="button" class="music-play-btn" aria-label="Play or pause imported music">▶ Play</button>
           </div>
           <div class="vinyl-wrap">
+            <div class="music-note-field" id="musicNoteField" aria-hidden="true"></div>
             <div id="trackArc" class="track-arc">No track loaded</div>
             <div id="vinylDisc" class="vinyl-disc"><span class="vinyl-label"></span></div>
+          </div>
+          <div class="music-seek-wrap">
+            <input id="musicSeekBar" type="range" min="0" max="1000" value="0" aria-label="Seek music position" />
+            <div id="musicSeekTime" class="music-seek-time">00:00 / 00:00</div>
           </div>
           <div class="music-controls">
             <label class="knob-like">Volume <input id="musicVolume" type="range" min="0" max="1" step="0.01" value="1" /></label>

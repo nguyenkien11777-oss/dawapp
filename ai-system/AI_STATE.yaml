@@ -1,14 +1,14 @@
 version: 1
-snapshot_date: 2026-03-02
+snapshot_date: 2026-03-06
 project: BeatForge
 constitutional_authority: ARCHITECTURE_DOC
-phase: v2_stabilized_production
+phase: v3_expansion_on_v2_safety
 phase_change_requires_constitution_review: true
 validation_required_on_major_change: true
 memory_requires_drift_check: true
 current_focus:
-  - hardening-complete with guard-centric control flow
-  - preserving deterministic behavior during incremental expansion
+  - v3 feature layer active while preserving v2 safety invariants
+  - validating UI/UX expansions do not violate transport/filesystem/async guarantees
 active_module:
   primary: beatforge/src/main.js
   supporting:
@@ -30,5 +30,5 @@ known_risks:
   - no explicit automated test suite observed in repository
   - concurrent UI actions remain sensitive to future feature additions without guard parity
 recent_edit_signal:
-  - async handler isolation updates in UI, recorder, startup
-  - backend and style changes in latest non-merge commit
+  - favicon + modal overlay visibility fix completed
+  - v3-oriented UI evolution remains constrained by v2 safety core
