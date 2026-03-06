@@ -5,6 +5,8 @@
   ],
   "permissions": [
     "core:default",
-    "core:event:allow-listen"
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:window:allow-close"
   ]
 }

@@ -85,6 +85,10 @@ export class ProjectManager {
     return tauriInvoke("pick_save_mp3_path", { defaultName });
   }
 
+  async pathExists(path) {
+    return tauriInvoke("path_exists", { path });
+  }
+
   async writeRecordingWav(row, wavBytes) {
     return tauriInvoke("write_recording_wav", { project: this.currentProject, row, bytes: Array.from(wavBytes) });
   }
