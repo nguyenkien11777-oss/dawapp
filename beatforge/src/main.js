@@ -32,14 +32,18 @@ const toolNormalize = document.getElementById("toolNormalize");
 const toolReverse = document.getElementById("toolReverse");
 const toolGain = document.getElementById("toolGain");
 const musicSyncToggle = document.getElementById("musicSyncToggle");
+const musicSmoothSeekToggle = document.getElementById("musicSmoothSeekToggle");
 const musicImportBtn = document.getElementById("musicImportBtn");
 const musicRemoveBtn = document.getElementById("musicRemoveBtn");
 const musicFileInput = document.getElementById("musicFileInput");
-const musicEnabled = document.getElementById("musicEnabled");
+const musicPlayToggleBtn = document.getElementById("musicPlayToggleBtn");
 const musicVolume = document.getElementById("musicVolume");
 const musicStartOffset = document.getElementById("musicStartOffset");
 const trackArc = document.getElementById("trackArc");
 const vinylDisc = document.getElementById("vinylDisc");
+const musicSeekBar = document.getElementById("musicSeekBar");
+const musicSeekTime = document.getElementById("musicSeekTime");
+const musicNoteField = document.getElementById("musicNoteField");
 const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
 const modalBody = document.getElementById("modalBody");
@@ -75,6 +79,13 @@ let externalMusicName = "";
 let currentMusicObjectUrl = null;
 let renderInProgress = false;
 let renderRequested = false;
+let musicSeekDragging = false;
+let musicSeekCommitTimer = null;
+let smoothSeekEnabled = true;
+let musicNotesRunning = false;
+let musicNoteRafId = null;
+let musicNoteLastSpawn = 0;
+const MUSIC_NOTE_MIN_INTERVAL_MS = 580;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
   const { userRows, presetRows } = projectManager.state.sequencer;
@@ -183,12 +194,91 @@ async function promptText(title, label, value = "") {
 
 function syncMusicUi() {
   const m = projectManager.state.music;
-  musicEnabled.checked = Boolean(m.enabled);
+  const enabled = Boolean(m.enabled);
+  musicPlayToggleBtn.textContent = enabled ? "⏸ Pause" : "▶ Play";
+  musicPlayToggleBtn.classList.toggle("active", enabled);
+  musicPlayToggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
   musicSyncToggle.checked = m.mode === "sync";
+  musicSmoothSeekToggle.checked = smoothSeekEnabled;
   musicVolume.value = String(m.volume ?? 1);
   musicStartOffset.value = String(m.startOffset ?? 0);
   const title = (externalMusicName || m.trackPath || "No track loaded").split(/[\\/]/).pop() || "No track loaded";
-  trackArc.textContent = title.length > 18 ? `${title.slice(0, 15)}...` : title;
+  trackArc.textContent = title.length > 24 ? `${title.slice(0, 21)}...` : title;
+}
+
+function fmtTime(totalSec) {
+  if (!Number.isFinite(totalSec) || totalSec < 0) return "00:00";
+  const sec = Math.floor(totalSec % 60);
+  const min = Math.floor(totalSec / 60);
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+function syncSeekUi() {
+  const duration = Number.isFinite(musicAudio.duration) && musicAudio.duration > 0 ? musicAudio.duration : 0;
+  const current = Number.isFinite(musicAudio.currentTime) ? musicAudio.currentTime : 0;
+  if (!musicSeekDragging) {
+    musicSeekBar.value = duration > 0 ? String(Math.round((current / duration) * 1000)) : "0";
+  }
+  musicSeekTime.textContent = `${fmtTime(current)} / ${fmtTime(duration)}`;
+}
+
+function spawnMusicNote() {
+  if (!musicNoteField) return;
+  const note = document.createElement("span");
+  note.className = "music-note";
+  note.textContent = Math.random() > 0.5 ? "♪" : "♫";
+  note.style.left = `${20 + Math.random() * 60}%`;
+  note.style.setProperty("--note-x", `${(-30 + Math.random() * 60).toFixed(1)}px`);
+  musicNoteField.appendChild(note);
+  note.addEventListener("animationend", () => note.remove(), { once: true });
+}
+
+function startMusicNotes() {
+  if (musicNotesRunning) return;
+  musicNotesRunning = true;
+  musicNoteLastSpawn = 0;
+  const loop = (now) => {
+    if (!musicNotesRunning) return;
+    if (document.hidden || musicAudio.paused) {
+      musicNoteRafId = requestAnimationFrame(loop);
+      return;
+    }
+    if (now - musicNoteLastSpawn >= MUSIC_NOTE_MIN_INTERVAL_MS) {
+      musicNoteLastSpawn = now;
+      spawnMusicNote();
+    }
+    musicNoteRafId = requestAnimationFrame(loop);
+  };
+  musicNoteRafId = requestAnimationFrame(loop);
+}
+
+function stopMusicNotes() {
+  musicNotesRunning = false;
+  if (musicNoteRafId) {
+    cancelAnimationFrame(musicNoteRafId);
+    musicNoteRafId = null;
+  }
+}
+
+function seekToSliderValue() {
+  const duration = Number.isFinite(musicAudio.duration) ? musicAudio.duration : 0;
+  if (!duration) return;
+  const nextTime = (Number(musicSeekBar.value) / 1000) * duration;
+  musicAudio.currentTime = nextTime;
+  syncSeekUi();
+}
+
+async function startMusicPlaybackAt(currentTimeSec) {
+  if (!musicAudio.src) return false;
+  musicAudio.currentTime = currentTimeSec;
+  musicAudio.volume = Number(projectManager.state.music.volume || 1);
+  try {
+    await musicAudio.play();
+    return true;
+  } catch (err) {
+    console.error("Music play error", err);
+    return false;
+  }
 }
 
 function isTransportActive() { return transportState !== TRANSPORT_STATE.IDLE; }
@@ -204,15 +294,18 @@ function maybeStartMusicWithTransport() {
   const m = projectManager.state.music;
   if (!m.enabled || m.mode !== "sync") return;
   if (!musicAudio.src) return;
-  musicAudio.currentTime = Number(m.startOffset || 0);
-  musicAudio.volume = Number(m.volume || 1);
-  musicAudio.play().catch((err) => console.error("Music play error", err));
-  vinylDisc.classList.add("spinning");
+  startMusicPlaybackAt(Number(m.startOffset || 0)).then((ok) => {
+    if (!ok) {
+      projectManager.state.music.enabled = false;
+      syncMusicUi();
+    }
+  });
 }
 
 function stopMusicPlayback() {
   musicAudio.pause();
   vinylDisc.classList.remove("spinning");
+  stopMusicNotes();
 }
 
 function syncTransportLocks() {
@@ -260,6 +353,7 @@ async function loadMusicFromState() {
     musicAudio.removeAttribute("src");
     stopMusicPlayback();
     syncMusicUi();
+    syncSeekUi();
     return;
   }
   if (isAbsoluteLikePath(path)) {
@@ -271,11 +365,14 @@ async function loadMusicFromState() {
     musicAudio.removeAttribute("src");
     stopMusicPlayback();
     syncMusicUi();
+    syncSeekUi();
     return;
   }
   const bytes = await projectManager.readProjectFileBytes(path);
   setMusicSourceFromBlob(new Blob([new Uint8Array(bytes)]));
+  musicAudio.currentTime = 0;
   syncMusicUi();
+  syncSeekUi();
 }
 
 async function loadSamplesForState() {
@@ -693,6 +790,7 @@ musicFileInput.onchange = safeAsync(async () => {
   setMusicSourceFromBlob(file);
   projectManager.markDirty();
   syncMusicUi();
+  syncSeekUi();
 });
 musicRemoveBtn.onclick = safeAsync(async () => {
   stopMusicPlayback();
@@ -702,23 +800,40 @@ musicRemoveBtn.onclick = safeAsync(async () => {
   externalMusicName = "";
   projectManager.state.music.trackPath = null;
   projectManager.state.music.enabled = false;
+  musicAudio.currentTime = 0;
   projectManager.markDirty();
   syncMusicUi();
+  syncSeekUi();
 });
-musicEnabled.onchange = () => {
-  projectManager.state.music.enabled = musicEnabled.checked;
-  projectManager.markDirty();
-  if (!musicEnabled.checked) stopMusicPlayback();
-  else if (projectManager.state.music.mode === "independent" && musicAudio.src) {
-    musicAudio.currentTime = Number(projectManager.state.music.startOffset || 0);
-    musicAudio.volume = Number(projectManager.state.music.volume || 1);
-    musicAudio.play().catch(() => {});
-    vinylDisc.classList.add("spinning");
+musicPlayToggleBtn.onclick = safeAsync(async () => {
+  const nextEnabled = !projectManager.state.music.enabled;
+  if (!nextEnabled) {
+    projectManager.state.music.enabled = false;
+    projectManager.markDirty();
+    stopMusicPlayback();
+    syncMusicUi();
+    return;
   }
-};
+
+  if (projectManager.state.music.mode !== "independent") {
+    projectManager.state.music.enabled = true;
+    projectManager.markDirty();
+    syncMusicUi();
+    return;
+  }
+
+  const ok = await startMusicPlaybackAt(Number(projectManager.state.music.startOffset || 0));
+  projectManager.state.music.enabled = ok;
+  projectManager.markDirty();
+  if (!ok) ui.log("Music playback failed. Check file format and source.");
+  syncMusicUi();
+});
 musicSyncToggle.onchange = () => {
   projectManager.state.music.mode = musicSyncToggle.checked ? "sync" : "independent";
   projectManager.markDirty();
+};
+musicSmoothSeekToggle.onchange = () => {
+  smoothSeekEnabled = musicSmoothSeekToggle.checked;
 };
 musicVolume.oninput = () => {
   projectManager.state.music.volume = Number(musicVolume.value);
@@ -729,11 +844,52 @@ musicStartOffset.oninput = () => {
   projectManager.state.music.startOffset = Math.max(0, Number(musicStartOffset.value || 0));
   projectManager.markDirty();
 };
-musicAudio.onpause = () => vinylDisc.classList.remove("spinning");
-musicAudio.onplay = () => vinylDisc.classList.add("spinning");
+musicAudio.onpause = () => {
+  vinylDisc.classList.remove("spinning");
+  stopMusicNotes();
+};
+musicAudio.onplay = () => {
+  vinylDisc.classList.add("spinning");
+  startMusicNotes();
+};
+musicAudio.ontimeupdate = syncSeekUi;
+musicAudio.onloadedmetadata = syncSeekUi;
+musicAudio.onended = () => {
+  projectManager.state.music.enabled = false;
+  syncMusicUi();
+  stopMusicNotes();
+  syncSeekUi();
+};
+
+musicSeekBar.addEventListener("pointerdown", (event) => {
+  musicSeekDragging = true;
+  if (musicSeekBar.setPointerCapture) musicSeekBar.setPointerCapture(event.pointerId);
+});
+musicSeekBar.addEventListener("pointerup", (event) => {
+  if (musicSeekBar.hasPointerCapture?.(event.pointerId)) musicSeekBar.releasePointerCapture(event.pointerId);
+});
+musicSeekBar.addEventListener("pointercancel", () => { musicSeekDragging = false; });
+musicSeekBar.addEventListener("lostpointercapture", () => { musicSeekDragging = false; });
+musicSeekBar.oninput = () => {
+  if (!smoothSeekEnabled) {
+    seekToSliderValue();
+    return;
+  }
+  if (musicSeekCommitTimer) clearTimeout(musicSeekCommitTimer);
+  musicSeekCommitTimer = setTimeout(seekToSliderValue, 55);
+};
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopMusicNotes();
+    return;
+  }
+  if (!musicAudio.paused) startMusicNotes();
+});
 
 syncTransportUi();
 syncTransportLocks();
+syncSeekUi();
 
 async function registerCloseHandler() {
   await appWindow.onCloseRequested(async (event) => {
