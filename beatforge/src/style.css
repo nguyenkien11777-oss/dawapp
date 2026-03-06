@@ -278,6 +278,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   z-index: 100;
   animation: fadeIn .15s ease;
 }
+
+.modal-overlay[hidden] {
+  display: none !important;
+}
 .modal-box {
   width: min(440px, 92vw);
   padding: 16px;
