@@ -12,7 +12,6 @@
   "app": {
     "windows": [
       {
-        "label": "main",
         "title": "BeatForge",
         "width": 1200,
         "height": 760,
