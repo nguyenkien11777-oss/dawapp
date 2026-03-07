@@ -1,123 +1,126 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BeatForge v2</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="/src/style.css" />
-  </head>
-  <body>
-    <section id="dashboard" class="studio-screen dashboard-screen">
-      <header class="dash-head panel">
-        <h1>BeatForge Projects</h1>
-        <button id="newProjectBtn">+ New Project</button>
-      </header>
-      <div id="projectCards" class="cards"></div>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BeatForge v2</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+  <section id="dashboard" class="studio-screen dashboard-screen">
+    <header class="dash-head panel">
+      <h1>BeatForge Projects</h1>
+      <button id="newProjectBtn">+ New Project</button>
+    </header>
+    <div id="projectCards" class="cards"></div>
+  </section>
+
+  <section id="sequencerScreen" class="studio-screen" hidden>
+    <header class="topbar panel">
+      <div class="menu-left">
+        <div class="menu">
+          <button id="fileMenuBtn" class="menu-btn">File ▾</button>
+          <div id="fileMenu" class="dropdown" hidden>
+            <button id="menuSave">💾 Save</button>
+            <button id="menuSaveAs">📁 Save As</button>
+            <button id="menuRename">✏ Rename</button>
+          </div>
+        </div>
+        <div class="menu">
+          <button id="optionMenuBtn" class="menu-btn">Option ▾</button>
+          <div id="optionMenu" class="dropdown" hidden>
+            <div class="dropdown-title">Audio Tools</div>
+            <button id="toolTrim">✂ Trim</button>
+            <button id="toolNormalize">📈 Normalize</button>
+            <button id="toolReverse">⟲ Reverse</button>
+            <button id="toolGain">🎚 Gain</button>
+            <div class="dropdown-title">Music Player Settings</div>
+            <label class="dropdown-label"><input id="musicSyncToggle" type="checkbox" /> Sync With Beat</label>
+            <label class="dropdown-label"><input id="musicSmoothSeekToggle" type="checkbox" checked /> Smooth Seek (low-power)</label>
+          </div>
+        </div>
+      </div>
+      <div class="head-right">
+        <strong id="projectTitle">No Project</strong>
+        <button id="backBtn">Dashboard</button>
+      </div>
+    </header>
+
+    <section class="tempo-row panel">
+      <div class="tempo-main">
+        <label class="tempo-slider-label">BPM
+          <input id="bpmInput" type="range" min="20" max="300" value="120" />
+        </label>
+        <select id="bpmPresetSelect"></select>
+      </div>
+      <div class="bpm-value" id="bpmValue">120</div>
     </section>
 
-    <section id="sequencerScreen" class="studio-screen" hidden>
-      <header class="topbar panel">
-        <div class="menu-left">
-          <div class="menu">
-            <button id="fileMenuBtn" class="menu-btn">File ▾</button>
-            <div id="fileMenu" class="dropdown" hidden>
-              <button id="menuSave">💾 Save</button>
-              <button id="menuSaveAs">📁 Save As</button>
-              <button id="menuRename">✏ Rename</button>
-            </div>
-          </div>
-          <div class="menu">
-            <button id="optionMenuBtn" class="menu-btn">Option ▾</button>
-            <div id="optionMenu" class="dropdown" hidden>
-              <div class="dropdown-title">Audio Tools</div>
-              <button id="toolTrim">✂ Trim</button>
-              <button id="toolNormalize">📈 Normalize</button>
-              <button id="toolReverse">⟲ Reverse</button>
-              <button id="toolGain">🎚 Gain</button>
-              <div class="dropdown-title">Music Player Settings</div>
-              <label class="dropdown-label"><input id="musicSyncToggle" type="checkbox" /> Sync With Beat</label>
-              <label class="dropdown-label"><input id="musicSmoothSeekToggle" type="checkbox" checked /> Smooth Seek (low-power)</label>
-            </div>
-          </div>
+    <main class="workstation-layout">
+      <section class="module module-rack panel">
+        <div class="module-header">
+          <h3>Drum Rack</h3>
         </div>
-        <div class="head-right">
-          <strong id="projectTitle">No Project</strong>
-          <button id="backBtn">Dashboard</button>
+        <div class="section-title-row">
+          <h4>REC Rows</h4>
+          <button id="addRecRowBtn">+ REC Row</button>
         </div>
-      </header>
+        <div id="recRows" class="rows"></div>
 
-      <section class="tempo-row panel">
-        <div class="tempo-main">
-          <label class="tempo-slider-label">BPM
-            <input id="bpmInput" type="range" min="20" max="300" value="120" />
-          </label>
-          <select id="bpmPresetSelect"></select>
+        <div class="section-title-row">
+          <h4>Preset Drum Rack</h4>
+          <button id="addPresetRowBtn">+ Preset Row</button>
         </div>
-        <div class="bpm-value" id="bpmValue">120</div>
+        <div id="presetRows" class="rows"></div>
       </section>
 
-      <main class="workstation-layout">
-        <section class="module module-rack panel">
-          <div class="module-header">
-            <h3>Drum Rack</h3>
-          </div>
-          <div class="section-title-row">
-            <h4>REC Rows</h4>
-            <button id="addRecRowBtn">+ REC Row</button>
-          </div>
-          <div id="recRows" class="rows"></div>
+      <section class="module module-vinyl panel">
+        <div class="module-header">
+          <h3>Music Player</h3>
+        </div>
+        <div class="vinyl-wrap">
+          <div class="music-note-field" id="musicNoteField" aria-hidden="true"></div>
+          <div id="trackArc" class="track-arc">No track loaded</div>
+          <div id="vinylDisc" class="vinyl-disc"><span class="vinyl-label"></span></div>
+        </div>
+        <div class="music-seek-wrap">
+          <input id="musicSeekBar" type="range" min="0" max="1000" value="0" aria-label="Seek music position" />
+          <div id="musicSeekTime" class="music-seek-time">00:00 / 00:00</div>
+        </div>
+        <div class="music-tools">
+          <input id="musicFileInput" type="file" accept="audio/*" hidden />
+          <button id="musicImportBtn">+ Import Track</button>
+          <button id="musicPlayToggleBtn" type="button" class="music-play-btn" aria-label="Play or pause imported music">▶ Play</button>
+          <button id="musicRemoveBtn">🗑 Remove</button>
+        </div>
+        <div class="music-controls">
+          <label class="knob-like">Volume <input id="musicVolume" type="range" min="0" max="1" step="0.01" value="1" /></label>
+          <label class="knob-like">Start Offset (s) <input id="musicStartOffset" type="number" min="0" step="0.1" value="0" /></label>
+        </div>
+      </section>
+    </main>
 
-          <div class="section-title-row">
-            <h4>Preset Drum Rack</h4>
-            <button id="addPresetRowBtn">+ Preset Row</button>
-          </div>
-          <div id="presetRows" class="rows"></div>
-        </section>
+    <footer class="transport panel">
+      <button id="playBtn">PLAY</button>
+      <button id="recordMasterBtn">RECORD MASTER</button>
+      <span id="transportTimer">00:00</span>
+    </footer>
 
-        <section class="module module-vinyl panel">
-          <div class="module-header">
-            <h3>Music Player</h3>
-          </div>
-          <div class="music-tools">
-            <input id="musicFileInput" type="file" accept="audio/*" hidden />
-            <button id="musicImportBtn">+ Import Track</button>
-            <button id="musicRemoveBtn">🗑 Remove</button>
-            <button id="musicPlayToggleBtn" type="button" class="music-play-btn" aria-label="Play or pause imported music">▶ Play</button>
-          </div>
-          <div class="vinyl-wrap">
-            <div class="music-note-field" id="musicNoteField" aria-hidden="true"></div>
-            <div id="trackArc" class="track-arc">No track loaded</div>
-            <div id="vinylDisc" class="vinyl-disc"><span class="vinyl-label"></span></div>
-          </div>
-          <div class="music-seek-wrap">
-            <input id="musicSeekBar" type="range" min="0" max="1000" value="0" aria-label="Seek music position" />
-            <div id="musicSeekTime" class="music-seek-time">00:00 / 00:00</div>
-          </div>
-          <div class="music-controls">
-            <label class="knob-like">Volume <input id="musicVolume" type="range" min="0" max="1" step="0.01" value="1" /></label>
-            <label class="knob-like">Start Offset (s) <input id="musicStartOffset" type="number" min="0" step="0.1" value="0" /></label>
-          </div>
-        </section>
-      </main>
+    <pre id="statusLog" class="panel"></pre>
+  </section>
 
-      <footer class="transport panel">
-        <button id="playBtn">PLAY</button>
-        <button id="recordMasterBtn">RECORD MASTER</button>
-        <span id="transportTimer">00:00</span>
-      </footer>
-
-      <pre id="statusLog" class="panel"></pre>
-    </section>
-
-    <div id="modalOverlay" class="modal-overlay" hidden>
-      <div class="modal-box">
-        <h4 id="modalTitle"></h4>
-        <div id="modalBody"></div>
-        <div class="modal-actions" id="modalActions"></div>
-      </div>
+  <div id="modalOverlay" class="modal-overlay" hidden>
+    <div class="modal-box">
+      <h4 id="modalTitle"></h4>
+      <div id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
     </div>
+  </div>
 
-    <script type="module" src="/src/main.js"></script>
-  </body>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
 </html>
