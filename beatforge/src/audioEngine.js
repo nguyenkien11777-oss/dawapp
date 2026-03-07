@@ -9,6 +9,7 @@ export class AudioEngine {
     this.analyser.fftSize = 1024;
     this.masterGain.connect(this.analyser);
     this.analyser.connect(this.context.destination);
+    this.activeSources = new Set();
   }
 
   async ensureRunning() {
@@ -54,11 +55,28 @@ export class AudioEngine {
     if (!buffer) return;
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
+    const release = () => {
+      source.removeEventListener("ended", release);
+      this.activeSources.delete(source);
+    };
     gain.gain.value = Math.max(0, Math.min(1, gainValue));
     source.buffer = buffer;
     source.connect(gain);
     gain.connect(this.masterGain);
+    source.addEventListener("ended", release, { once: true });
+    this.activeSources.add(source);
     source.start(when);
+  }
+
+  stopAllPlayingSources() {
+    for (const source of this.activeSources) {
+      try {
+        source.stop(0);
+      } catch {
+        // source may already be stopped/disposed; ignore.
+      }
+    }
+    this.activeSources.clear();
   }
 
   getPeakLevel() {

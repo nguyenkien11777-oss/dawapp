@@ -320,8 +320,9 @@ async function transitionTransport(nextState) {
 
   if (nextState === TRANSPORT_STATE.IDLE) {
     if (scheduler.isPlaying) scheduler.stop();
+    audioEngine.stopAllPlayingSources();
     ui.highlightStep(-1);
-    if (projectManager.state.music.mode === "sync") stopMusicPlayback();
+    stopMusicPlayback();
   } else if (nextState === TRANSPORT_STATE.PLAYING || nextState === TRANSPORT_STATE.MASTER_RECORDING) {
     if (!scheduler.isPlaying) scheduler.start();
     maybeStartMusicWithTransport();
