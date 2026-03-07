@@ -302,6 +302,10 @@ function maybeStartMusicWithTransport() {
   });
 }
 
+function stopSequencerAudio() {
+  audioEngine.stopAllPlayingSources();
+}
+
 function stopMusicPlayback() {
   musicAudio.pause();
   vinylDisc.classList.remove("spinning");
@@ -320,6 +324,7 @@ async function transitionTransport(nextState) {
 
   if (nextState === TRANSPORT_STATE.IDLE) {
     if (scheduler.isPlaying) scheduler.stop();
+    stopSequencerAudio();
     ui.highlightStep(-1);
     if (projectManager.state.music.mode === "sync") stopMusicPlayback();
   } else if (nextState === TRANSPORT_STATE.PLAYING || nextState === TRANSPORT_STATE.MASTER_RECORDING) {
