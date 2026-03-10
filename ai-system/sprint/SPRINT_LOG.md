@@ -28,3 +28,27 @@
   - Updated `ai-system/AI_STATE.yaml` snapshot_date to 2026-03-06 and phase to `v3_expansion_on_v2_safety`.
   - Updated `ai-system/LONG_TERM_MEMORY.md` with concise synchronization note; no obsolete assumptions were identified for this change.
 - Final system state: **STABLE** (no constitutional modification in this procedure).
+
+## 2026-03-10 — Governance Closure for Tauri Window Permission Fix
+- Scope reviewed (live re-scan):
+  - `beatforge/src-tauri/capabilities/default.json`
+  - `beatforge/src/main.js`
+  - `beatforge/src-tauri/src/main.rs` (sanity cross-check for non-impacted backend guarantees)
+- Drift Check result: **Drift detected in `beatforge/src-tauri/capabilities/default.json`** relative to `AI_STATE.yaml` snapshot baseline; drift is constrained to window ACL expansion enabling close-flow destroy operation.
+- Constitutional Impact Assessment:
+  - Alters architectural invariants: NO
+  - Alters module boundaries: NO
+  - Alters authority ownership: NO
+  - Alters transport model: NO
+  - Alters filesystem guarantees: NO
+  - Constitutional document update required: NO
+- Compliance Gate (ARCHITECTURE_DOC = `beatforge/ARCHITECTURE_V1_V2.md`):
+  - Deterministic transport behavior: PASS
+  - Single-authority control paths: PASS
+  - In-flight guard discipline: PASS
+  - Canonical filesystem containment: PASS
+  - Async isolation behavior: PASS
+- State Synchronization:
+  - Updated `ai-system/AI_STATE.yaml` snapshot_date to `2026-03-10`; phase unchanged (`v3_expansion_on_v2_safety`).
+  - Updated `ai-system/LONG_TERM_MEMORY.md` with concise drift/compliance synchronization note for this change.
+- Final system state: **STABLE** (no constitutional modification).

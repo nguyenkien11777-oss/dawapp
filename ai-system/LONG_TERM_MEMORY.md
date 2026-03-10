@@ -49,3 +49,10 @@ Must be revalidated after structural module changes.
 - Drift check executed against live modules touched by recent change (`beatforge/index.html`, `beatforge/src/style.css`) and risk-sensitive modules (`beatforge/src/main.js`, `beatforge/src-tauri/src/main.rs`).
 - Result: No structural drift detected; prior fix is cosmetic/UI-static and does not alter transport authority, in-flight guard discipline, or filesystem containment behavior.
 - Phase context updated to v3 expansion on top of preserved v2 safety model.
+
+## 2026-03-10 Synchronization Note
+- Drift check executed against live close-flow modules: `beatforge/src/main.js` and `beatforge/src-tauri/capabilities/default.json`, with safety baseline cross-check against `beatforge/src-tauri/src/main.rs`.
+- Result: Drift detected in `beatforge/src-tauri/capabilities/default.json` relative to prior snapshot baseline, limited to ACL permission extension (`core:window:allow-destroy`) required by runtime close path.
+- Constitutional impact assessment: no change to transport model, authority ownership, module boundaries, filesystem containment, or async guard invariants.
+- Compliance gate outcome: all required categories PASS.
+- System state after synchronization: STABLE.
