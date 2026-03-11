@@ -221,7 +221,7 @@ button:disabled {
 
 .workstation-layout {
   display: grid;
-  grid-template-columns: minmax(620px, 1fr) minmax(320px, 0.45fr);
+  grid-template-columns: 1fr 320px;
   gap: 16px;
   margin: 16px 0 92px;
 }
@@ -252,7 +252,7 @@ button:disabled {
 
 .seq-row {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns:1fr;
   gap: 10px;
   align-items: center;
   padding: 10px;
