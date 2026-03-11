@@ -52,6 +52,51 @@ const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
 const modalBody = document.getElementById("modalBody");
 const modalActions = document.getElementById("modalActions");
+const audioEditorProjectTitle = document.getElementById("audioEditorProjectTitle");
+const audioEditorBackBtn = document.getElementById("audioEditorBackBtn");
+const editorRecSelect = document.getElementById("editorRecSelect");
+const editorPreviewBtn = document.getElementById("editorPreviewBtn");
+const editorWaveBars = document.getElementById("editorWaveBars");
+const editorTrimStart = document.getElementById("editorTrimStart");
+const editorTrimEnd = document.getElementById("editorTrimEnd");
+const editorPitchKnob = document.getElementById("editorPitchKnob");
+const editorPitchValue = document.getElementById("editorPitchValue");
+const editorToneKnob = document.getElementById("editorToneKnob");
+const editorToneValue = document.getElementById("editorToneValue");
+const editorGainDb = document.getElementById("editorGainDb");
+const editorFadeIn = document.getElementById("editorFadeIn");
+const editorFadeOut = document.getElementById("editorFadeOut");
+const editorTempoPercent = document.getElementById("editorTempoPercent");
+const editorNormalize = document.getElementById("editorNormalize");
+const editorReverse = document.getElementById("editorReverse");
+const editorLoop = document.getElementById("editorLoop");
+const editorKeyDetected = document.getElementById("editorKeyDetected");
+const editorKeyShift = document.getElementById("editorKeyShift");
+const editorEqBass = document.getElementById("editorEqBass");
+const editorEqMid = document.getElementById("editorEqMid");
+const editorEqTreble = document.getElementById("editorEqTreble");
+const editorLowPass = document.getElementById("editorLowPass");
+const editorHighPass = document.getElementById("editorHighPass");
+const editorBandPass = document.getElementById("editorBandPass");
+const editorReverbMix = document.getElementById("editorReverbMix");
+const editorDelayMix = document.getElementById("editorDelayMix");
+const editorCompressor = document.getElementById("editorCompressor");
+const editorLimiter = document.getElementById("editorLimiter");
+const editorChorusMix = document.getElementById("editorChorusMix");
+const editorFlangerMix = document.getElementById("editorFlangerMix");
+const editorPhaserMix = document.getElementById("editorPhaserMix");
+const editorDistortion = document.getElementById("editorDistortion");
+const editorSaturation = document.getElementById("editorSaturation");
+const editorGlitch = document.getElementById("editorGlitch");
+const editorStutterMs = document.getElementById("editorStutterMs");
+const editorFreeze = document.getElementById("editorFreeze");
+const editorVocalMorph = document.getElementById("editorVocalMorph");
+const editorAutoTune = document.getElementById("editorAutoTune");
+const editorQuantize = document.getElementById("editorQuantize");
+const editorDetectedBpm = document.getElementById("editorDetectedBpm");
+const editorVoice = document.getElementById("editorVoice");
+const editorResetBtn = document.getElementById("editorResetBtn");
+const editorApplyBtn = document.getElementById("editorApplyBtn");
 const drumImportInput = document.createElement("input");
 drumImportInput.type = "file";
 drumImportInput.accept = ".wav,audio/wav";
@@ -94,6 +139,13 @@ let smoothSeekEnabled = true;
 let musicNotesRunning = false;
 let musicNoteRafId = null;
 let musicNoteLastSpawn = 0;
+let editorSelectedRecRow = null;
+let editorSourceBuffer = null;
+let editorProcessedBuffer = null;
+let editorWaveRenderToken = 0;
+let editorPitchValueNum = 0;
+let editorToneValueNum = 0;
+let editorDetentPreviewTimer = null;
 const MUSIC_NOTE_MIN_INTERVAL_MS = 580;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
@@ -368,7 +420,9 @@ function clearMasterTimer() {
 
 function updateHeader() {
   const dirty = projectManager.dirty ? " *" : "";
-  projectTitle.textContent = `${projectManager.currentProject ?? "No Project"}${dirty}`;
+  const title = `${projectManager.currentProject ?? "No Project"}${dirty}`;
+  projectTitle.textContent = title;
+  if (audioEditorProjectTitle) audioEditorProjectTitle.textContent = title;
 }
 
 async function loadMusicFromState() {
@@ -449,7 +503,8 @@ async function renderProcessedBuffer(source, payload = {}) {
   const semitone = Number(payload.pitchSemitone || 0);
   const tone = Number(payload.tone || 0);
   const voice = payload.voice || "natural";
-  const playbackRate = Math.max(0.5, Math.min(2, Math.pow(2, semitone / 12)));
+  const tempoFactor = Math.max(0.25, Math.min(4, Number(payload.tempoPercent || 100) / 100));
+  const playbackRate = Math.max(0.0625, Math.min(16, Math.pow(2, semitone / 12) * tempoFactor));
   const outLength = Math.max(1, Math.ceil(source.length / playbackRate));
   const offline = new OfflineAudioContext(source.numberOfChannels, outLength, source.sampleRate);
   const src = offline.createBufferSource();
@@ -481,6 +536,429 @@ async function renderProcessedBuffer(source, payload = {}) {
   voiceFilter.connect(offline.destination);
   src.start(0);
   return offline.startRendering();
+}
+
+function createImpulseResponse(sampleRate, durationSec = 1.6, decay = 2.2) {
+  const len = Math.max(1, Math.floor(sampleRate * durationSec));
+  const impulse = new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate });
+  for (let c = 0; c < impulse.numberOfChannels; c += 1) {
+    const channel = impulse.getChannelData(c);
+    for (let i = 0; i < len; i += 1) {
+      const t = i / len;
+      channel[i] = ((Math.random() * 2) - 1) * Math.pow(1 - t, decay);
+    }
+  }
+  return impulse;
+}
+
+function estimateBpmFromBuffer(buffer) {
+  const data = buffer.getChannelData(0);
+  const win = 1024;
+  const peaks = [];
+  for (let i = 0; i < data.length; i += win) {
+    let peak = 0;
+    for (let k = i; k < Math.min(data.length, i + win); k += 1) peak = Math.max(peak, Math.abs(data[k]));
+    if (peak > 0.32) peaks.push(i);
+  }
+  if (peaks.length < 4) return null;
+  const intervals = [];
+  for (let i = 1; i < peaks.length; i += 1) intervals.push((peaks[i] - peaks[i - 1]) / buffer.sampleRate);
+  const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  if (!Number.isFinite(avg) || avg <= 0) return null;
+  const bpm = Math.round(60 / avg);
+  if (bpm < 40 || bpm > 240) return null;
+  return bpm;
+}
+
+function applySampleEffectsInPlace(buffer) {
+  const chorusMix = Number(editorChorusMix.value || 0) / 100;
+  const flangerMix = Number(editorFlangerMix.value || 0) / 100;
+  const phaserMix = Number(editorPhaserMix.value || 0) / 100;
+  const distAmt = Number(editorDistortion.value || 0) / 100;
+  const satAmt = Number(editorSaturation.value || 0) / 100;
+  const glitchAmt = Number(editorGlitch.value || 0) / 100;
+  const freezeAmt = Number(editorFreeze.value || 0) / 100;
+  const morphAmt = Number(editorVocalMorph.value || 0) / 100;
+  const stutterMs = Math.max(0, Number(editorStutterMs.value || 0));
+
+  const sr = buffer.sampleRate;
+  for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+    const d = buffer.getChannelData(c);
+    const out = new Float32Array(d.length);
+    const chorusDelay = Math.floor(sr * 0.022);
+    const flangerDelay = Math.floor(sr * 0.004);
+    const stutter = stutterMs > 0 ? Math.floor((stutterMs / 1000) * sr) : 0;
+    const freezeStart = Math.floor(d.length * (1 - freezeAmt));
+
+    for (let i = 0; i < d.length; i += 1) {
+      let v = d[i];
+      if (chorusMix > 0 && i > chorusDelay) v = (v * (1 - chorusMix)) + ((d[i - chorusDelay] + d[Math.max(0, i - chorusDelay - 17)]) * 0.5 * chorusMix);
+      if (flangerMix > 0 && i > flangerDelay) {
+        const mod = Math.floor((Math.sin(i / 180) + 1) * 0.5 * flangerDelay);
+        v = (v * (1 - flangerMix)) + (d[Math.max(0, i - mod)] * flangerMix);
+      }
+      if (phaserMix > 0 && i > 2) v = (v * (1 - phaserMix)) + ((-d[i - 1] + d[i - 2]) * phaserMix * 0.7);
+      if (distAmt > 0) v = Math.tanh(v * (1 + distAmt * 8));
+      if (satAmt > 0) v = Math.tanh(v * (1 + satAmt * 3)) * (1 - satAmt * 0.25);
+      if (morphAmt > 0) {
+        const carrier = Math.sin((2 * Math.PI * 80 * i) / sr);
+        v = (v * (1 - morphAmt)) + (carrier * Math.abs(v) * morphAmt);
+      }
+      if (glitchAmt > 0 && Math.random() < (glitchAmt * 0.02)) v = 0;
+      out[i] = Math.max(-1, Math.min(1, v));
+    }
+
+    if (stutter > 8) {
+      for (let i = 0; i < out.length; i += stutter * 2) {
+        const copyLen = Math.min(stutter, out.length - i);
+        for (let k = 0; k < copyLen && i + stutter + k < out.length; k += 1) out[i + stutter + k] = out[i + k];
+      }
+    }
+
+    if (freezeAmt > 0 && freezeStart < out.length - 1) {
+      const frozen = out[Math.max(0, freezeStart - 1)];
+      for (let i = freezeStart; i < out.length; i += 1) out[i] = frozen;
+    }
+
+    d.set(out);
+  }
+}
+
+async function applyMixFxChain(buffer) {
+  const sr = buffer.sampleRate;
+  const offline = new OfflineAudioContext(2, buffer.length, sr);
+  const src = offline.createBufferSource();
+  src.buffer = buffer;
+
+  const eqLow = offline.createBiquadFilter();
+  eqLow.type = "lowshelf";
+  eqLow.frequency.value = 180;
+  eqLow.gain.value = Number(editorEqBass.value || 0);
+
+  const eqMid = offline.createBiquadFilter();
+  eqMid.type = "peaking";
+  eqMid.frequency.value = 1200;
+  eqMid.Q.value = 0.9;
+  eqMid.gain.value = Number(editorEqMid.value || 0);
+
+  const eqHigh = offline.createBiquadFilter();
+  eqHigh.type = "highshelf";
+  eqHigh.frequency.value = 3800;
+  eqHigh.gain.value = Number(editorEqTreble.value || 0);
+
+  const hp = offline.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = Math.max(0, Number(editorHighPass.value || 0));
+
+  const lp = offline.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = Math.max(40, Number(editorLowPass.value || 20000));
+
+  const bp = offline.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = Math.max(20, Number(editorBandPass.value || 1000));
+  bp.Q.value = 1.1;
+
+  const comp = offline.createDynamicsCompressor();
+  comp.threshold.value = Number(editorLimiter.checked ? -8 : -16);
+  comp.ratio.value = Number(editorLimiter.checked ? 20 : 4);
+  comp.attack.value = 0.003;
+  comp.release.value = 0.25;
+
+  const reverbMix = Number(editorReverbMix.value || 0) / 100;
+  const convolver = offline.createConvolver();
+  convolver.buffer = createImpulseResponse(sr, 1.8, 2.0);
+  const reverbWet = offline.createGain();
+  reverbWet.gain.value = reverbMix;
+  const reverbDry = offline.createGain();
+  reverbDry.gain.value = 1 - reverbMix;
+
+  const delayMix = Number(editorDelayMix.value || 0) / 100;
+  const delay = offline.createDelay(1.2);
+  delay.delayTime.value = 0.24;
+  const feedback = offline.createGain();
+  feedback.gain.value = 0.35;
+  const delayWet = offline.createGain();
+  delayWet.gain.value = delayMix;
+  const delayDry = offline.createGain();
+  delayDry.gain.value = 1 - delayMix;
+
+  src.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh); eqHigh.connect(hp); hp.connect(lp);
+
+  const useBandPass = Number(editorBandPass.value || 0) > 0;
+  const chainEnd = useBandPass ? bp : lp;
+  if (useBandPass) lp.connect(bp);
+
+  if (editorCompressor.checked || editorLimiter.checked) {
+    chainEnd.connect(comp);
+  }
+  const dynEnd = (editorCompressor.checked || editorLimiter.checked) ? comp : chainEnd;
+
+  dynEnd.connect(reverbDry);
+  dynEnd.connect(convolver);
+  convolver.connect(reverbWet);
+  reverbDry.connect(delayDry);
+  reverbWet.connect(delayDry);
+
+  delayDry.connect(delayWet);
+  delayDry.connect(offline.destination);
+  delayWet.connect(delay);
+  delay.connect(feedback);
+  feedback.connect(delay);
+  delay.connect(offline.destination);
+
+  src.start(0);
+  const rendered = await offline.startRendering();
+  applySampleEffectsInPlace(rendered);
+
+  const autoTuneStrength = Number(editorAutoTune.value || 0) / 100;
+  const quantizeStrength = Number(editorQuantize.value || 0) / 100;
+  if (autoTuneStrength > 0 || quantizeStrength > 0) {
+    for (let c = 0; c < rendered.numberOfChannels; c += 1) {
+      const d = rendered.getChannelData(c);
+      const hop = 256;
+      for (let i = 0; i < d.length; i += hop) {
+        if (autoTuneStrength > 0) {
+          const target = Math.round(d[i] * 12) / 12;
+          d[i] = (d[i] * (1 - autoTuneStrength)) + (target * autoTuneStrength);
+        }
+        if (quantizeStrength > 0) {
+          const beatGate = Math.sin((2 * Math.PI * i) / (hop * 16));
+          d[i] *= (1 - quantizeStrength * 0.15) + (Math.max(0, beatGate) * quantizeStrength * 0.15);
+        }
+      }
+    }
+  }
+
+  return rendered;
+}
+
+function buildWaveBarsHtml(buffer) {
+  if (!buffer) return "";
+  const bars = 92;
+  const ch = buffer.getChannelData(0);
+  const perBar = Math.max(1, Math.floor(ch.length / bars));
+  let graph = "";
+  for (let i = 0; i < bars; i += 1) {
+    const start = i * perBar;
+    const end = Math.min(ch.length, start + perBar);
+    let peak = 0;
+    for (let k = start; k < end; k += 1) peak = Math.max(peak, Math.abs(ch[k]));
+    const h = Math.max(5, Math.round(peak * 78));
+    graph += `<span style="height:${h}px"></span>`;
+  }
+  return graph;
+}
+
+function getSelectedEditorRow() {
+  if (editorSelectedRecRow == null) return null;
+  return projectManager.state.sequencer.userRows[editorSelectedRecRow] ?? null;
+}
+
+function setKnobVisual(knobEl, normalized) {
+  const deg = -135 + (normalized * 270);
+  knobEl.style.setProperty("--knob-rotation", `${deg}deg`);
+}
+
+function scheduleEditorStepPreview() {
+  if (editorDetentPreviewTimer) clearTimeout(editorDetentPreviewTimer);
+  editorDetentPreviewTimer = setTimeout(async () => {
+    if (!editorProcessedBuffer) return;
+    const row = getSelectedEditorRow();
+    await audioEngine.ensureRunning();
+    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime, loop: Boolean(editorLoop.checked) });
+  }, 140);
+}
+
+function setupEditorKnob({ knobEl, min, max, step, getValue, setValue, onStepCross }) {
+  let dragging = false;
+  let lastY = 0;
+
+  const applyValue = (next, preview = false) => {
+    const prev = getValue();
+    const clamped = Math.max(min, Math.min(max, next));
+    const snapped = Math.round(clamped / step) * step;
+    const crossed = Math.round(prev / step) !== Math.round(snapped / step);
+    setValue(snapped);
+    const normalized = (snapped - min) / (max - min);
+    setKnobVisual(knobEl, normalized);
+    if (preview && crossed) onStepCross?.();
+  };
+
+  knobEl.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -step : step;
+    applyValue(getValue() + delta, true);
+  }, { passive: false });
+
+  knobEl.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    lastY = event.clientY;
+    knobEl.setPointerCapture?.(event.pointerId);
+  });
+
+  knobEl.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    const dy = lastY - event.clientY;
+    lastY = event.clientY;
+    applyValue(getValue() + (dy * step * 0.22), true);
+  });
+
+  const stopDrag = (event) => {
+    dragging = false;
+    if (event?.pointerId != null && knobEl.hasPointerCapture?.(event.pointerId)) knobEl.releasePointerCapture(event.pointerId);
+  };
+
+  knobEl.addEventListener("pointerup", stopDrag);
+  knobEl.addEventListener("pointercancel", stopDrag);
+  knobEl.addEventListener("dblclick", () => applyValue(0, true));
+
+  applyValue(getValue(), false);
+}
+
+async function recalcEditorProcessedBuffer() {
+  const row = getSelectedEditorRow();
+  if (!row?.samplePath) {
+    editorSourceBuffer = null;
+    editorProcessedBuffer = null;
+    editorWaveBars.innerHTML = "";
+    return;
+  }
+  const source = sampleBuffers.get(row.samplePath);
+  if (!source) {
+    editorSourceBuffer = null;
+    editorProcessedBuffer = null;
+    editorWaveBars.innerHTML = "";
+    return;
+  }
+
+  editorSourceBuffer = source;
+  const startSec = Math.max(0, Number(editorTrimStart.value || 0));
+  const endSec = Math.max(startSec, Number(editorTrimEnd.value || source.duration));
+  const pitchSemitone = Number(editorPitchValueNum || 0) + Number(editorKeyShift.value || 0);
+  const tone = Number(editorToneValueNum || 0);
+  const voice = editorVoice.value;
+  editorPitchValue.textContent = `${editorPitchValueNum.toFixed(0)} st`;
+  editorToneValue.textContent = editorToneValueNum.toFixed(1);
+
+  const token = ++editorWaveRenderToken;
+  const startFrame = Math.min(source.length, Math.floor(startSec * source.sampleRate));
+  const endFrame = Math.min(source.length, Math.floor(endSec * source.sampleRate));
+  const len = Math.max(1, endFrame - startFrame);
+  const trimmed = audioEngine.context.createBuffer(source.numberOfChannels, len, source.sampleRate);
+  for (let c = 0; c < source.numberOfChannels; c += 1) trimmed.copyToChannel(source.getChannelData(c).slice(startFrame, endFrame), c);
+  let stage = trimmed;
+  if (editorReverse.checked) {
+    const rev = audioEngine.context.createBuffer(stage.numberOfChannels, stage.length, stage.sampleRate);
+    for (let c = 0; c < stage.numberOfChannels; c += 1) rev.copyToChannel(Float32Array.from(stage.getChannelData(c)).reverse(), c);
+    stage = rev;
+  }
+
+  const tempoPercent = Math.max(25, Math.min(400, Number(editorTempoPercent.value || 100)));
+  const processed = await renderProcessedBuffer(stage, { pitchSemitone, tone, voice, tempoPercent });
+  const out = audioEngine.context.createBuffer(processed.numberOfChannels, processed.length, processed.sampleRate);
+  const gainScale = Math.pow(10, (Number(editorGainDb.value || 0) / 20));
+  const fadeInSec = Math.max(0, Number(editorFadeIn.value || 0));
+  const fadeOutSec = Math.max(0, Number(editorFadeOut.value || 0));
+  const fadeInFrames = Math.floor(fadeInSec * processed.sampleRate);
+  const fadeOutFrames = Math.floor(fadeOutSec * processed.sampleRate);
+  for (let c = 0; c < processed.numberOfChannels; c += 1) {
+    const src = processed.getChannelData(c);
+    const dst = new Float32Array(src.length);
+    for (let i = 0; i < src.length; i += 1) {
+      let amp = gainScale;
+      if (fadeInFrames > 0 && i < fadeInFrames) amp *= (i / fadeInFrames);
+      if (fadeOutFrames > 0 && i > src.length - fadeOutFrames) amp *= ((src.length - i) / Math.max(1, fadeOutFrames));
+      dst[i] = Math.max(-1, Math.min(1, src[i] * amp));
+    }
+    out.copyToChannel(dst, c);
+  }
+  if (editorNormalize.checked) audioEngine.normalizeBuffer(out);
+
+  const mixed = await applyMixFxChain(out);
+  const bpmGuess = estimateBpmFromBuffer(mixed);
+
+  if (token !== editorWaveRenderToken) return;
+  editorProcessedBuffer = mixed;
+  editorWaveBars.innerHTML = buildWaveBarsHtml(mixed);
+  editorKeyDetected.value = pitchSemitone >= 0 ? `Likely +${Math.round(pitchSemitone)} semitone shift` : `Likely ${Math.round(pitchSemitone)} semitone shift`;
+  editorDetectedBpm.value = bpmGuess ? String(bpmGuess) : "--";
+}
+
+function hydrateEditorRecSelector() {
+  editorRecSelect.innerHTML = "";
+  projectManager.state.sequencer.userRows.forEach((row, idx) => {
+    const opt = document.createElement("option");
+    opt.value = String(idx);
+    opt.textContent = `REC ${idx + 1}${row.samplePath ? "" : " (no audio)"}`;
+    editorRecSelect.appendChild(opt);
+  });
+}
+
+async function openAudioEditorScreen() {
+  if (inFlightSave || inFlightRecordingPersist) {
+    ui.log("Cannot open audio editor while save/persist is in progress.");
+    return;
+  }
+  if (!projectManager.currentProject) return;
+  closeMenus();
+  audioEditorProjectTitle.textContent = projectManager.currentProject;
+  hydrateEditorRecSelector();
+  if (editorRecSelect.options.length === 0) {
+    await runModalOperation(() => showModalError("No REC rows available."));
+    return;
+  }
+
+  if (editorSelectedRecRow == null || !projectManager.state.sequencer.userRows[editorSelectedRecRow]) {
+    editorSelectedRecRow = Number(lastClickedRecRow ?? 0);
+  }
+  editorSelectedRecRow = Math.max(0, Math.min(projectManager.state.sequencer.userRows.length - 1, editorSelectedRecRow));
+  editorRecSelect.value = String(editorSelectedRecRow);
+  const row = getSelectedEditorRow();
+  const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
+  const duration = source?.duration ?? 0;
+  editorTrimStart.value = "0";
+  editorTrimEnd.value = duration.toFixed(2);
+  editorPitchValueNum = 0;
+  editorToneValueNum = 0;
+  editorVoice.value = "natural";
+  editorGainDb.value = "0";
+  editorFadeIn.value = "0";
+  editorFadeOut.value = "0";
+  editorTempoPercent.value = "100";
+  editorNormalize.checked = false;
+  editorReverse.checked = false;
+  editorLoop.checked = false;
+  editorKeyShift.value = "0";
+  editorEqBass.value = "0";
+  editorEqMid.value = "0";
+  editorEqTreble.value = "0";
+  editorLowPass.value = "20000";
+  editorHighPass.value = "0";
+  editorBandPass.value = "0";
+  editorReverbMix.value = "0";
+  editorDelayMix.value = "0";
+  editorCompressor.checked = false;
+  editorLimiter.checked = false;
+  editorChorusMix.value = "0";
+  editorFlangerMix.value = "0";
+  editorPhaserMix.value = "0";
+  editorDistortion.value = "0";
+  editorSaturation.value = "0";
+  editorGlitch.value = "0";
+  editorStutterMs.value = "0";
+  editorFreeze.value = "0";
+  editorVocalMorph.value = "0";
+  editorAutoTune.value = "0";
+  editorQuantize.value = "0";
+  editorDetectedBpm.value = "--";
+  await recalcEditorProcessedBuffer();
+  if (editorProcessedBuffer) {
+    await audioEngine.ensureRunning();
+    const gain = row?.volume ?? 1;
+    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: gain, when: audioEngine.context.currentTime });
+  }
+  ui.showAudioEditor();
 }
 
 async function applyAudioTool(tool, payload = {}) {
@@ -600,6 +1078,7 @@ async function openProject(name) {
   await projectManager.loadProject(name);
   activeRecRow = null;
   lastClickedRecRow = null;
+  editorSelectedRecRow = null;
   missingSampleWarnings.clear();
   updateHeader();
   await loadMusicFromState();
@@ -729,57 +1208,185 @@ menuRename.onclick = safeAsync(async () => {
 });
 
 toolAudioEditor.onclick = safeAsync(async () => {
-  closeMenus();
-  if (inFlightSave || inFlightRecordingPersist) return ui.log("Cannot apply audio tools while save/persist is in progress.");
-  if (lastClickedRecRow == null) return ui.log("Select a REC row first.");
-  const row = projectManager.state.sequencer.userRows[lastClickedRecRow];
+  await openAudioEditorScreen();
+});
+
+audioEditorBackBtn.onclick = safeAsync(async () => {
+  ui.showSequencer();
+  await renderSequencer();
+});
+
+editorRecSelect.onchange = safeAsync(async () => {
+  editorSelectedRecRow = Number(editorRecSelect.value);
+  const row = getSelectedEditorRow();
   const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
-  if (!source) return ui.log("Selected REC row has no recording.");
-
-  const bars = 64;
-  const ch = source.getChannelData(0);
-  const perBar = Math.max(1, Math.floor(ch.length / bars));
-  let graph = "";
-  for (let i = 0; i < bars; i += 1) {
-    const start = i * perBar;
-    const end = Math.min(ch.length, start + perBar);
-    let peak = 0;
-    for (let k = start; k < end; k += 1) peak = Math.max(peak, Math.abs(ch[k]));
-    const h = Math.max(6, Math.round(peak * 48));
-    graph += `<span style='display:inline-block;width:4px;height:${h}px;background:#91f6d1;border-radius:2px;opacity:0.8'></span>`;
-  }
-
-  modalTitle.textContent = `REC ${lastClickedRecRow + 1} Audio Editor`;
-  modalBody.innerHTML = `<div class='modal-body-grid'>
-    <div style='display:flex;align-items:flex-end;gap:2px;min-height:56px;border:1px solid #3b5264;padding:8px;border-radius:8px;overflow:hidden'>${graph}</div>
-    <label>Trim start (sec)<input id='editorTrimStart' type='number' min='0' step='0.01' value='0' /></label>
-    <label>Trim end (sec)<input id='editorTrimEnd' type='number' min='0' step='0.01' value='${source.duration.toFixed(2)}' /></label>
-    <label>Pitch (semitone, -12..12)<input id='editorPitch' type='number' min='-12' max='12' step='1' value='0' /></label>
-    <label>Tone (-12..12)<input id='editorTone' type='number' min='-12' max='12' step='0.5' value='0' /></label>
-    <label>Voice<select id='editorVoice'><option value='natural'>Natural</option><option value='warm'>Warm</option><option value='bright'>Bright</option></select></label>
-  </div>`;
-  modalActions.innerHTML = "<button id='modalPreview'>Preview</button><button id='modalCancel'>Cancel</button><button id='modalOk'>Save</button>";
-  modalOverlay.hidden = false;
-  document.getElementById("modalCancel").onclick = () => { modalOverlay.hidden = true; };
-  document.getElementById("modalPreview").onclick = safeAsync(async () => {
+  const duration = source?.duration ?? 0;
+  editorTrimStart.value = "0";
+  editorTrimEnd.value = duration.toFixed(2);
+  editorPitchValueNum = 0;
+  editorToneValueNum = 0;
+  editorVoice.value = "natural";
+  editorGainDb.value = "0";
+  editorFadeIn.value = "0";
+  editorFadeOut.value = "0";
+  editorTempoPercent.value = "100";
+  editorNormalize.checked = false;
+  editorReverse.checked = false;
+  editorLoop.checked = false;
+  editorKeyShift.value = "0";
+  editorEqBass.value = "0";
+  editorEqMid.value = "0";
+  editorEqTreble.value = "0";
+  editorLowPass.value = "20000";
+  editorHighPass.value = "0";
+  editorBandPass.value = "0";
+  editorReverbMix.value = "0";
+  editorDelayMix.value = "0";
+  editorCompressor.checked = false;
+  editorLimiter.checked = false;
+  editorChorusMix.value = "0";
+  editorFlangerMix.value = "0";
+  editorPhaserMix.value = "0";
+  editorDistortion.value = "0";
+  editorSaturation.value = "0";
+  editorGlitch.value = "0";
+  editorStutterMs.value = "0";
+  editorFreeze.value = "0";
+  editorVocalMorph.value = "0";
+  editorAutoTune.value = "0";
+  editorQuantize.value = "0";
+  editorDetectedBpm.value = "--";
+  await recalcEditorProcessedBuffer();
+  if (editorProcessedBuffer) {
     await audioEngine.ensureRunning();
-    const preview = await renderProcessedBuffer(source, {
-      pitchSemitone: Number(document.getElementById("editorPitch").value || 0),
-      tone: Number(document.getElementById("editorTone").value || 0),
-      voice: document.getElementById("editorVoice").value
-    });
-    audioEngine.playBuffer({ buffer: preview, gainValue: row.volume, when: audioEngine.context.currentTime });
-  });
-  document.getElementById("modalOk").onclick = safeAsync(async () => {
-    const startSec = Number(document.getElementById("editorTrimStart").value || 0);
-    const endSec = Number(document.getElementById("editorTrimEnd").value || source.duration);
-    const pitchSemitone = Number(document.getElementById("editorPitch").value || 0);
-    const tone = Number(document.getElementById("editorTone").value || 0);
-    const voice = document.getElementById("editorVoice").value;
-    modalOverlay.hidden = true;
-    await applyAudioTool("trim", { startSec, endSec });
-    await applyAudioTool("editor", { pitchSemitone, tone, voice });
-  });
+    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime });
+  }
+});
+
+const editorLiveUpdate = safeAsync(async () => {
+  await recalcEditorProcessedBuffer();
+});
+
+setupEditorKnob({
+  knobEl: editorPitchKnob,
+  min: -48,
+  max: 48,
+  step: 1,
+  getValue: () => editorPitchValueNum,
+  setValue: (value) => { editorPitchValueNum = value; editorPitchValue.textContent = `${value.toFixed(0)} st`; editorLiveUpdate(); },
+  onStepCross: async () => { await recalcEditorProcessedBuffer(); scheduleEditorStepPreview(); }
+});
+
+setupEditorKnob({
+  knobEl: editorToneKnob,
+  min: -24,
+  max: 24,
+  step: 0.5,
+  getValue: () => editorToneValueNum,
+  setValue: (value) => { editorToneValueNum = value; editorToneValue.textContent = value.toFixed(1); editorLiveUpdate(); },
+  onStepCross: async () => { await recalcEditorProcessedBuffer(); scheduleEditorStepPreview(); }
+});
+editorTrimStart.oninput = editorLiveUpdate;
+editorTrimEnd.oninput = editorLiveUpdate;
+editorGainDb.oninput = editorLiveUpdate;
+editorFadeIn.oninput = editorLiveUpdate;
+editorFadeOut.oninput = editorLiveUpdate;
+editorTempoPercent.oninput = editorLiveUpdate;
+editorNormalize.onchange = editorLiveUpdate;
+editorReverse.onchange = editorLiveUpdate;
+editorEqBass.oninput = editorLiveUpdate;
+editorEqMid.oninput = editorLiveUpdate;
+editorEqTreble.oninput = editorLiveUpdate;
+editorLowPass.oninput = editorLiveUpdate;
+editorHighPass.oninput = editorLiveUpdate;
+editorBandPass.oninput = editorLiveUpdate;
+editorReverbMix.oninput = editorLiveUpdate;
+editorDelayMix.oninput = editorLiveUpdate;
+editorCompressor.onchange = editorLiveUpdate;
+editorLimiter.onchange = editorLiveUpdate;
+editorChorusMix.oninput = editorLiveUpdate;
+editorFlangerMix.oninput = editorLiveUpdate;
+editorPhaserMix.oninput = editorLiveUpdate;
+editorDistortion.oninput = editorLiveUpdate;
+editorSaturation.oninput = editorLiveUpdate;
+editorGlitch.oninput = editorLiveUpdate;
+editorStutterMs.oninput = editorLiveUpdate;
+editorFreeze.oninput = editorLiveUpdate;
+editorVocalMorph.oninput = editorLiveUpdate;
+editorAutoTune.oninput = editorLiveUpdate;
+editorQuantize.oninput = editorLiveUpdate;
+editorKeyShift.oninput = editorLiveUpdate;
+editorVoice.onchange = editorLiveUpdate;
+
+editorPreviewBtn.onclick = safeAsync(async () => {
+  if (!editorProcessedBuffer) {
+    ui.log("No processed audio to preview.");
+    return;
+  }
+  const row = getSelectedEditorRow();
+  await audioEngine.ensureRunning();
+  audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime });
+});
+
+editorResetBtn.onclick = safeAsync(async () => {
+  const row = getSelectedEditorRow();
+  const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
+  editorTrimStart.value = "0";
+  editorTrimEnd.value = (source?.duration ?? 0).toFixed(2);
+  editorPitchValueNum = 0;
+  editorToneValueNum = 0;
+  editorVoice.value = "natural";
+  editorGainDb.value = "0";
+  editorFadeIn.value = "0";
+  editorFadeOut.value = "0";
+  editorTempoPercent.value = "100";
+  editorNormalize.checked = false;
+  editorReverse.checked = false;
+  editorLoop.checked = false;
+  editorKeyShift.value = "0";
+  editorEqBass.value = "0";
+  editorEqMid.value = "0";
+  editorEqTreble.value = "0";
+  editorLowPass.value = "20000";
+  editorHighPass.value = "0";
+  editorBandPass.value = "0";
+  editorReverbMix.value = "0";
+  editorDelayMix.value = "0";
+  editorCompressor.checked = false;
+  editorLimiter.checked = false;
+  editorChorusMix.value = "0";
+  editorFlangerMix.value = "0";
+  editorPhaserMix.value = "0";
+  editorDistortion.value = "0";
+  editorSaturation.value = "0";
+  editorGlitch.value = "0";
+  editorStutterMs.value = "0";
+  editorFreeze.value = "0";
+  editorVocalMorph.value = "0";
+  editorAutoTune.value = "0";
+  editorQuantize.value = "0";
+  editorDetectedBpm.value = "--";
+  await recalcEditorProcessedBuffer();
+});
+
+editorApplyBtn.onclick = safeAsync(async () => {
+  if (inFlightSave || inFlightRecordingPersist || inFlightAudioTool) {
+    ui.log("Cannot save audio editor changes while save/persist/tool is in progress.");
+    return;
+  }
+  const rowIndex = Number(editorRecSelect.value);
+  if (!Number.isInteger(rowIndex)) {
+    ui.log("Select a REC row first.");
+    return;
+  }
+  if (!editorProcessedBuffer) {
+    ui.log("Nothing to save in audio editor.");
+    return;
+  }
+  lastClickedRecRow = rowIndex;
+  await persistRecordedBuffer(rowIndex, editorProcessedBuffer);
+  ui.log(`Audio editor changes saved on REC ${rowIndex + 1}`);
+  await recalcEditorProcessedBuffer();
 });
 
 menuImportWav.onclick = safeAsync(async () => {
@@ -941,7 +1548,7 @@ recordMasterBtn.onclick = safeAsync(async () => {
     const message = errorMessage(error);
     ui.log(`Master record finalize failed: ${message}`);
     if (message.includes("FFMPEG_NOT_FOUND")) {
-      await runModalOperation(() => showModalError("MP3 export requires ffmpeg in PATH. Install ffmpeg and retry."));
+      await runModalOperation(() => showModalError("Không thể xuất MP3 vì máy chưa có encoder. master.wav đã được giữ trong project; hãy cài ffmpeg rồi thử lại MP3."));
     }
   } finally {
     inFlightExportMp3 = false;

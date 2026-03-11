@@ -196,3 +196,50 @@ v2 safety luôn giữ. v3 feature mở rộng. Conflict: document, use v3, khôn
 Tổng Kết
 
 v3 không thay đổi transport state machine, filesystem security, async guard, recording pipeline. Chỉ mở rộng UI, UX, Music workflow, Audio tools, Menu.
+
+15. v3.5 Governance Rules (Audio Editor + Import + Export Reliability)
+
+v3.5 là lớp mở rộng trên v3, vẫn giữ toàn bộ safety kernel của v2.
+
+15.1 Dedicated Audio Editor Screen (not modal)
+
+REC Audio Editor phải là màn hình riêng, chuyển trạng thái tương tự Dashboard/Sequencer, không dùng modal làm giao diện chỉnh sửa chính.
+Editor phải có điều hướng rõ ràng: Sequencer -> Audio Editor -> Sequencer.
+
+15.2 REC Selection Authority inside Editor
+
+Audio Editor phải có vùng chọn REC row độc lập trong chính editor.
+Không phụ thuộc vào last-click context của sequencer.
+Khi đổi REC row, editor phải cập nhật source, waveform và preview theo row mới.
+
+15.3 Extreme Pitch Range + Visual Feedback
+
+Pitch control trong editor phải hỗ trợ kéo từ rất cao xuống rất thấp (extreme range).
+Mọi thay đổi trim/pitch/tone/voice phải phản ánh lên waveform bars để người dùng nhìn thấy kết quả xử lý.
+Nếu preview được bật hoặc user yêu cầu preview, phải phát theo processed buffer hiện tại.
+
+15.4 Deterministic Processing + Save Semantics
+
+Chuỗi xử lý audio editor phải deterministic, không phụ thuộc timing ngẫu nhiên của UI callback.
+Save từ editor phải ghi vào recording path tương ứng REC row được chọn (project-relative), không ghi absolute path.
+Không mutate state trước khi IO thành công (giữ nguyên nguyên tắc v2).
+
+15.5 WAV-only Import Security Rule
+
+Import vào Preset Drum Rack chỉ chấp nhận .wav.
+Validation phải có ở cả frontend và backend; backend là authority cuối cùng.
+Filename phải sanitize; không cho path traversal; destination nằm trong /assets/drums.
+
+15.6 MP3 Export Reliability Rule
+
+Master finalize phải luôn giữ master.wav trước khi thử xuất MP3.
+Nếu encoder MP3 thiếu ở runtime (ví dụ ffmpeg không sẵn có), hệ thống phải trả lỗi rõ ràng, actionable, và không được làm mất dữ liệu master.wav.
+Thông điệp lỗi phải hướng user tới fallback (giữ WAV / thử lại MP3 sau khi cài encoder).
+
+15.7 Forward Compatibility Contract
+
+Mọi phiên bản sau v3.5 khi mở rộng Audio Editor/Import/Export phải chứng minh:
+- Không phá transport state machine authority.
+- Không phá in-flight guard lifecycle.
+- Không phá filesystem containment và relative-path persistence.
+- Không tạo unhandled async rejection từ UI/editor callbacks.

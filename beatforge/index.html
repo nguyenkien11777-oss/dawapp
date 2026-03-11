@@ -119,6 +119,171 @@
     <pre id="statusLog" class="panel"></pre>
   </section>
 
+
+  <section id="audioEditorScreen" class="studio-screen" hidden>
+    <header class="topbar panel">
+      <div class="menu-left">
+        <h3 style="margin:0">REC Audio Editor</h3>
+      </div>
+      <div class="head-right">
+        <strong id="audioEditorProjectTitle">No Project</strong>
+        <button id="audioEditorBackBtn">Back to Sequencer</button>
+      </div>
+    </header>
+
+    <main class="editor-layout panel">
+      <aside class="editor-sidebar">
+        <h4>REC Row Selection</h4>
+        <label>Choose REC Row
+          <select id="editorRecSelect"></select>
+        </label>
+        <button id="editorPreviewBtn">▶ Preview Selected</button>
+        <small class="editor-help">Tip: chọn REC bất kỳ để chỉnh sửa, không phụ thuộc REC vừa ghi.</small>
+      </aside>
+
+      <section class="editor-main">
+        <div class="editor-wave-panel">
+          <div class="editor-wave-title">Processed Wave View</div>
+          <div id="editorWaveBars" class="editor-wave-bars" aria-label="Processed waveform bars"></div>
+        </div>
+
+        <div class="editor-controls-grid">
+          <label>Trim Start (sec)
+            <input id="editorTrimStart" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>Trim End (sec)
+            <input id="editorTrimEnd" type="number" min="0" step="0.01" value="0" />
+          </label>
+
+          <div class="editor-knob-wrap">
+            <div class="editor-knob-label">Pitch</div>
+            <div id="editorPitchKnob" class="editor-knob" role="slider" aria-label="Pitch knob" tabindex="0">
+              <div class="editor-knob-ring"></div>
+              <div class="editor-knob-pointer"></div>
+            </div>
+            <div class="editor-readout" id="editorPitchValue">0 st</div>
+          </div>
+
+          <div class="editor-knob-wrap">
+            <div class="editor-knob-label">Tone</div>
+            <div id="editorToneKnob" class="editor-knob" role="slider" aria-label="Tone knob" tabindex="0">
+              <div class="editor-knob-ring"></div>
+              <div class="editor-knob-pointer"></div>
+            </div>
+            <div class="editor-readout" id="editorToneValue">0.0</div>
+          </div>
+
+          <label>Gain (dB)
+            <input id="editorGainDb" type="range" min="-24" max="24" step="0.5" value="0" />
+          </label>
+          <label>Fade In (sec)
+            <input id="editorFadeIn" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>Fade Out (sec)
+            <input id="editorFadeOut" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>Tempo Change (%)
+            <input id="editorTempoPercent" type="number" min="25" max="400" step="1" value="100" />
+          </label>
+          <label><input id="editorNormalize" type="checkbox" /> Normalize</label>
+          <label><input id="editorReverse" type="checkbox" /> Reverse</label>
+          <label><input id="editorLoop" type="checkbox" /> Loop preview</label>
+
+          <label>Voice Character
+            <select id="editorVoice">
+              <option value="natural">Natural</option>
+              <option value="warm">Warm</option>
+              <option value="bright">Bright</option>
+            </select>
+          </label>
+          <label>Key Detection
+            <input id="editorKeyDetected" type="text" value="Detect on preview" readonly />
+          </label>
+          <label>Key Shift (semi)
+            <input id="editorKeyShift" type="number" min="-12" max="12" step="1" value="0" />
+          </label>
+
+          <div class="editor-section-title">v3.5.2 Mix</div>
+          <label>Bass (dB)
+            <input id="editorEqBass" type="range" min="-18" max="18" step="0.5" value="0" />
+          </label>
+          <label>Mid (dB)
+            <input id="editorEqMid" type="range" min="-18" max="18" step="0.5" value="0" />
+          </label>
+          <label>Treble (dB)
+            <input id="editorEqTreble" type="range" min="-18" max="18" step="0.5" value="0" />
+          </label>
+          <label>Low-pass (Hz)
+            <input id="editorLowPass" type="number" min="40" max="20000" step="10" value="20000" />
+          </label>
+          <label>High-pass (Hz)
+            <input id="editorHighPass" type="number" min="0" max="8000" step="10" value="0" />
+          </label>
+          <label>Band-pass Freq (Hz)
+            <input id="editorBandPass" type="number" min="0" max="12000" step="10" value="0" />
+          </label>
+          <label>Reverb Mix (%)
+            <input id="editorReverbMix" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Delay Mix (%)
+            <input id="editorDelayMix" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Compressor
+            <input id="editorCompressor" type="checkbox" />
+          </label>
+          <label>Limiter
+            <input id="editorLimiter" type="checkbox" />
+          </label>
+
+          <div class="editor-section-title">v3.5.3 Creative</div>
+          <label>Chorus Mix (%)
+            <input id="editorChorusMix" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Flanger Mix (%)
+            <input id="editorFlangerMix" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Phaser Mix (%)
+            <input id="editorPhaserMix" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Distortion (%)
+            <input id="editorDistortion" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Saturation (%)
+            <input id="editorSaturation" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Glitch (%)
+            <input id="editorGlitch" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Stutter (ms)
+            <input id="editorStutterMs" type="number" min="0" max="300" step="5" value="0" />
+          </label>
+          <label>Time Freeze (%)
+            <input id="editorFreeze" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Vocal Morph (%)
+            <input id="editorVocalMorph" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+
+          <div class="editor-section-title">v3.5.4 Intelligent</div>
+          <label>AutoTune Strength (%)
+            <input id="editorAutoTune" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Quantize Strength (%)
+            <input id="editorQuantize" type="range" min="0" max="100" step="1" value="0" />
+          </label>
+          <label>Detected BPM
+            <input id="editorDetectedBpm" type="text" value="--" readonly />
+          </label>
+        </div>
+
+        <div class="editor-actions">
+          <button id="editorResetBtn">Reset</button>
+          <button id="editorApplyBtn">💾 Save to REC Row</button>
+        </div>
+      </section>
+    </main>
+  </section>
+
   <div id="modalOverlay" class="modal-overlay" hidden>
     <div class="modal-box">
       <h4 id="modalTitle"></h4>

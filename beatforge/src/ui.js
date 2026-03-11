@@ -4,6 +4,7 @@ export class UI {
   constructor() {
     this.dashboard = document.getElementById("dashboard");
     this.sequencer = document.getElementById("sequencerScreen");
+    this.audioEditor = document.getElementById("audioEditorScreen");
     this.projectCards = document.getElementById("projectCards");
     this.recRows = document.getElementById("recRows");
     this.presetRows = document.getElementById("presetRows");
@@ -11,8 +12,9 @@ export class UI {
     this.statusLog = document.getElementById("statusLog");
   }
 
-  showDashboard() { this.dashboard.hidden = false; this.sequencer.hidden = true; }
-  showSequencer() { this.dashboard.hidden = true; this.sequencer.hidden = false; }
+  showDashboard() { this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; }
+  showSequencer() { this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; }
+  showAudioEditor() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; }
 
   renderProjectCards(cards, handlers) {
     this.projectCards.innerHTML = "";
