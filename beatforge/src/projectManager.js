@@ -81,6 +81,10 @@ export class ProjectManager {
     return tauriInvoke("export_mp3_from_master_to_path", { project: this.currentProject, outputPath: path });
   }
 
+  async ffmpegPreflight() {
+    return tauriInvoke("ffmpeg_preflight");
+  }
+
   async chooseMp3SavePath(defaultName) {
     return tauriInvoke("pick_save_mp3_path", { defaultName });
   }
@@ -95,6 +99,10 @@ export class ProjectManager {
 
   async writeMusicFile(fileName, bytes) {
     return tauriInvoke("write_project_music_file", { project: this.currentProject, fileName, bytes: Array.from(bytes) });
+  }
+
+  async importDrumWav(fileName, bytes) {
+    return tauriInvoke("import_drum_wav", { fileName, bytes: Array.from(bytes) });
   }
 
   async listDrumSamples() { return tauriInvoke("list_drum_samples"); }
