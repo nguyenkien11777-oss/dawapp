@@ -72,6 +72,28 @@ const editorReverse = document.getElementById("editorReverse");
 const editorLoop = document.getElementById("editorLoop");
 const editorKeyDetected = document.getElementById("editorKeyDetected");
 const editorKeyShift = document.getElementById("editorKeyShift");
+const editorEqBass = document.getElementById("editorEqBass");
+const editorEqMid = document.getElementById("editorEqMid");
+const editorEqTreble = document.getElementById("editorEqTreble");
+const editorLowPass = document.getElementById("editorLowPass");
+const editorHighPass = document.getElementById("editorHighPass");
+const editorBandPass = document.getElementById("editorBandPass");
+const editorReverbMix = document.getElementById("editorReverbMix");
+const editorDelayMix = document.getElementById("editorDelayMix");
+const editorCompressor = document.getElementById("editorCompressor");
+const editorLimiter = document.getElementById("editorLimiter");
+const editorChorusMix = document.getElementById("editorChorusMix");
+const editorFlangerMix = document.getElementById("editorFlangerMix");
+const editorPhaserMix = document.getElementById("editorPhaserMix");
+const editorDistortion = document.getElementById("editorDistortion");
+const editorSaturation = document.getElementById("editorSaturation");
+const editorGlitch = document.getElementById("editorGlitch");
+const editorStutterMs = document.getElementById("editorStutterMs");
+const editorFreeze = document.getElementById("editorFreeze");
+const editorVocalMorph = document.getElementById("editorVocalMorph");
+const editorAutoTune = document.getElementById("editorAutoTune");
+const editorQuantize = document.getElementById("editorQuantize");
+const editorDetectedBpm = document.getElementById("editorDetectedBpm");
 const editorVoice = document.getElementById("editorVoice");
 const editorResetBtn = document.getElementById("editorResetBtn");
 const editorApplyBtn = document.getElementById("editorApplyBtn");
@@ -516,6 +538,201 @@ async function renderProcessedBuffer(source, payload = {}) {
   return offline.startRendering();
 }
 
+function createImpulseResponse(sampleRate, durationSec = 1.6, decay = 2.2) {
+  const len = Math.max(1, Math.floor(sampleRate * durationSec));
+  const impulse = new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate });
+  for (let c = 0; c < impulse.numberOfChannels; c += 1) {
+    const channel = impulse.getChannelData(c);
+    for (let i = 0; i < len; i += 1) {
+      const t = i / len;
+      channel[i] = ((Math.random() * 2) - 1) * Math.pow(1 - t, decay);
+    }
+  }
+  return impulse;
+}
+
+function estimateBpmFromBuffer(buffer) {
+  const data = buffer.getChannelData(0);
+  const win = 1024;
+  const peaks = [];
+  for (let i = 0; i < data.length; i += win) {
+    let peak = 0;
+    for (let k = i; k < Math.min(data.length, i + win); k += 1) peak = Math.max(peak, Math.abs(data[k]));
+    if (peak > 0.32) peaks.push(i);
+  }
+  if (peaks.length < 4) return null;
+  const intervals = [];
+  for (let i = 1; i < peaks.length; i += 1) intervals.push((peaks[i] - peaks[i - 1]) / buffer.sampleRate);
+  const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  if (!Number.isFinite(avg) || avg <= 0) return null;
+  const bpm = Math.round(60 / avg);
+  if (bpm < 40 || bpm > 240) return null;
+  return bpm;
+}
+
+function applySampleEffectsInPlace(buffer) {
+  const chorusMix = Number(editorChorusMix.value || 0) / 100;
+  const flangerMix = Number(editorFlangerMix.value || 0) / 100;
+  const phaserMix = Number(editorPhaserMix.value || 0) / 100;
+  const distAmt = Number(editorDistortion.value || 0) / 100;
+  const satAmt = Number(editorSaturation.value || 0) / 100;
+  const glitchAmt = Number(editorGlitch.value || 0) / 100;
+  const freezeAmt = Number(editorFreeze.value || 0) / 100;
+  const morphAmt = Number(editorVocalMorph.value || 0) / 100;
+  const stutterMs = Math.max(0, Number(editorStutterMs.value || 0));
+
+  const sr = buffer.sampleRate;
+  for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+    const d = buffer.getChannelData(c);
+    const out = new Float32Array(d.length);
+    const chorusDelay = Math.floor(sr * 0.022);
+    const flangerDelay = Math.floor(sr * 0.004);
+    const stutter = stutterMs > 0 ? Math.floor((stutterMs / 1000) * sr) : 0;
+    const freezeStart = Math.floor(d.length * (1 - freezeAmt));
+
+    for (let i = 0; i < d.length; i += 1) {
+      let v = d[i];
+      if (chorusMix > 0 && i > chorusDelay) v = (v * (1 - chorusMix)) + ((d[i - chorusDelay] + d[Math.max(0, i - chorusDelay - 17)]) * 0.5 * chorusMix);
+      if (flangerMix > 0 && i > flangerDelay) {
+        const mod = Math.floor((Math.sin(i / 180) + 1) * 0.5 * flangerDelay);
+        v = (v * (1 - flangerMix)) + (d[Math.max(0, i - mod)] * flangerMix);
+      }
+      if (phaserMix > 0 && i > 2) v = (v * (1 - phaserMix)) + ((-d[i - 1] + d[i - 2]) * phaserMix * 0.7);
+      if (distAmt > 0) v = Math.tanh(v * (1 + distAmt * 8));
+      if (satAmt > 0) v = Math.tanh(v * (1 + satAmt * 3)) * (1 - satAmt * 0.25);
+      if (morphAmt > 0) {
+        const carrier = Math.sin((2 * Math.PI * 80 * i) / sr);
+        v = (v * (1 - morphAmt)) + (carrier * Math.abs(v) * morphAmt);
+      }
+      if (glitchAmt > 0 && Math.random() < (glitchAmt * 0.02)) v = 0;
+      out[i] = Math.max(-1, Math.min(1, v));
+    }
+
+    if (stutter > 8) {
+      for (let i = 0; i < out.length; i += stutter * 2) {
+        const copyLen = Math.min(stutter, out.length - i);
+        for (let k = 0; k < copyLen && i + stutter + k < out.length; k += 1) out[i + stutter + k] = out[i + k];
+      }
+    }
+
+    if (freezeAmt > 0 && freezeStart < out.length - 1) {
+      const frozen = out[Math.max(0, freezeStart - 1)];
+      for (let i = freezeStart; i < out.length; i += 1) out[i] = frozen;
+    }
+
+    d.set(out);
+  }
+}
+
+async function applyMixFxChain(buffer) {
+  const sr = buffer.sampleRate;
+  const offline = new OfflineAudioContext(2, buffer.length, sr);
+  const src = offline.createBufferSource();
+  src.buffer = buffer;
+
+  const eqLow = offline.createBiquadFilter();
+  eqLow.type = "lowshelf";
+  eqLow.frequency.value = 180;
+  eqLow.gain.value = Number(editorEqBass.value || 0);
+
+  const eqMid = offline.createBiquadFilter();
+  eqMid.type = "peaking";
+  eqMid.frequency.value = 1200;
+  eqMid.Q.value = 0.9;
+  eqMid.gain.value = Number(editorEqMid.value || 0);
+
+  const eqHigh = offline.createBiquadFilter();
+  eqHigh.type = "highshelf";
+  eqHigh.frequency.value = 3800;
+  eqHigh.gain.value = Number(editorEqTreble.value || 0);
+
+  const hp = offline.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = Math.max(0, Number(editorHighPass.value || 0));
+
+  const lp = offline.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = Math.max(40, Number(editorLowPass.value || 20000));
+
+  const bp = offline.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = Math.max(20, Number(editorBandPass.value || 1000));
+  bp.Q.value = 1.1;
+
+  const comp = offline.createDynamicsCompressor();
+  comp.threshold.value = Number(editorLimiter.checked ? -8 : -16);
+  comp.ratio.value = Number(editorLimiter.checked ? 20 : 4);
+  comp.attack.value = 0.003;
+  comp.release.value = 0.25;
+
+  const reverbMix = Number(editorReverbMix.value || 0) / 100;
+  const convolver = offline.createConvolver();
+  convolver.buffer = createImpulseResponse(sr, 1.8, 2.0);
+  const reverbWet = offline.createGain();
+  reverbWet.gain.value = reverbMix;
+  const reverbDry = offline.createGain();
+  reverbDry.gain.value = 1 - reverbMix;
+
+  const delayMix = Number(editorDelayMix.value || 0) / 100;
+  const delay = offline.createDelay(1.2);
+  delay.delayTime.value = 0.24;
+  const feedback = offline.createGain();
+  feedback.gain.value = 0.35;
+  const delayWet = offline.createGain();
+  delayWet.gain.value = delayMix;
+  const delayDry = offline.createGain();
+  delayDry.gain.value = 1 - delayMix;
+
+  src.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh); eqHigh.connect(hp); hp.connect(lp);
+
+  const useBandPass = Number(editorBandPass.value || 0) > 0;
+  const chainEnd = useBandPass ? bp : lp;
+  if (useBandPass) lp.connect(bp);
+
+  if (editorCompressor.checked || editorLimiter.checked) {
+    chainEnd.connect(comp);
+  }
+  const dynEnd = (editorCompressor.checked || editorLimiter.checked) ? comp : chainEnd;
+
+  dynEnd.connect(reverbDry);
+  dynEnd.connect(convolver);
+  convolver.connect(reverbWet);
+  reverbDry.connect(delayDry);
+  reverbWet.connect(delayDry);
+
+  delayDry.connect(delayWet);
+  delayDry.connect(offline.destination);
+  delayWet.connect(delay);
+  delay.connect(feedback);
+  feedback.connect(delay);
+  delay.connect(offline.destination);
+
+  src.start(0);
+  const rendered = await offline.startRendering();
+  applySampleEffectsInPlace(rendered);
+
+  const autoTuneStrength = Number(editorAutoTune.value || 0) / 100;
+  const quantizeStrength = Number(editorQuantize.value || 0) / 100;
+  if (autoTuneStrength > 0 || quantizeStrength > 0) {
+    for (let c = 0; c < rendered.numberOfChannels; c += 1) {
+      const d = rendered.getChannelData(c);
+      const hop = 256;
+      for (let i = 0; i < d.length; i += hop) {
+        if (autoTuneStrength > 0) {
+          const target = Math.round(d[i] * 12) / 12;
+          d[i] = (d[i] * (1 - autoTuneStrength)) + (target * autoTuneStrength);
+        }
+        if (quantizeStrength > 0) {
+          const beatGate = Math.sin((2 * Math.PI * i) / (hop * 16));
+          d[i] *= (1 - quantizeStrength * 0.15) + (Math.max(0, beatGate) * quantizeStrength * 0.15);
+        }
+      }
+    }
+  }
+
+  return rendered;
+}
+
 function buildWaveBarsHtml(buffer) {
   if (!buffer) return "";
   const bars = 92;
@@ -658,10 +875,14 @@ async function recalcEditorProcessedBuffer() {
   }
   if (editorNormalize.checked) audioEngine.normalizeBuffer(out);
 
+  const mixed = await applyMixFxChain(out);
+  const bpmGuess = estimateBpmFromBuffer(mixed);
+
   if (token !== editorWaveRenderToken) return;
-  editorProcessedBuffer = out;
-  editorWaveBars.innerHTML = buildWaveBarsHtml(out);
+  editorProcessedBuffer = mixed;
+  editorWaveBars.innerHTML = buildWaveBarsHtml(mixed);
   editorKeyDetected.value = pitchSemitone >= 0 ? `Likely +${Math.round(pitchSemitone)} semitone shift` : `Likely ${Math.round(pitchSemitone)} semitone shift`;
+  editorDetectedBpm.value = bpmGuess ? String(bpmGuess) : "--";
 }
 
 function hydrateEditorRecSelector() {
@@ -701,6 +922,36 @@ async function openAudioEditorScreen() {
   editorPitchValueNum = 0;
   editorToneValueNum = 0;
   editorVoice.value = "natural";
+  editorGainDb.value = "0";
+  editorFadeIn.value = "0";
+  editorFadeOut.value = "0";
+  editorTempoPercent.value = "100";
+  editorNormalize.checked = false;
+  editorReverse.checked = false;
+  editorLoop.checked = false;
+  editorKeyShift.value = "0";
+  editorEqBass.value = "0";
+  editorEqMid.value = "0";
+  editorEqTreble.value = "0";
+  editorLowPass.value = "20000";
+  editorHighPass.value = "0";
+  editorBandPass.value = "0";
+  editorReverbMix.value = "0";
+  editorDelayMix.value = "0";
+  editorCompressor.checked = false;
+  editorLimiter.checked = false;
+  editorChorusMix.value = "0";
+  editorFlangerMix.value = "0";
+  editorPhaserMix.value = "0";
+  editorDistortion.value = "0";
+  editorSaturation.value = "0";
+  editorGlitch.value = "0";
+  editorStutterMs.value = "0";
+  editorFreeze.value = "0";
+  editorVocalMorph.value = "0";
+  editorAutoTune.value = "0";
+  editorQuantize.value = "0";
+  editorDetectedBpm.value = "--";
   await recalcEditorProcessedBuffer();
   if (editorProcessedBuffer) {
     await audioEngine.ensureRunning();
@@ -975,6 +1226,36 @@ editorRecSelect.onchange = safeAsync(async () => {
   editorPitchValueNum = 0;
   editorToneValueNum = 0;
   editorVoice.value = "natural";
+  editorGainDb.value = "0";
+  editorFadeIn.value = "0";
+  editorFadeOut.value = "0";
+  editorTempoPercent.value = "100";
+  editorNormalize.checked = false;
+  editorReverse.checked = false;
+  editorLoop.checked = false;
+  editorKeyShift.value = "0";
+  editorEqBass.value = "0";
+  editorEqMid.value = "0";
+  editorEqTreble.value = "0";
+  editorLowPass.value = "20000";
+  editorHighPass.value = "0";
+  editorBandPass.value = "0";
+  editorReverbMix.value = "0";
+  editorDelayMix.value = "0";
+  editorCompressor.checked = false;
+  editorLimiter.checked = false;
+  editorChorusMix.value = "0";
+  editorFlangerMix.value = "0";
+  editorPhaserMix.value = "0";
+  editorDistortion.value = "0";
+  editorSaturation.value = "0";
+  editorGlitch.value = "0";
+  editorStutterMs.value = "0";
+  editorFreeze.value = "0";
+  editorVocalMorph.value = "0";
+  editorAutoTune.value = "0";
+  editorQuantize.value = "0";
+  editorDetectedBpm.value = "--";
   await recalcEditorProcessedBuffer();
   if (editorProcessedBuffer) {
     await audioEngine.ensureRunning();
@@ -1013,6 +1294,27 @@ editorFadeOut.oninput = editorLiveUpdate;
 editorTempoPercent.oninput = editorLiveUpdate;
 editorNormalize.onchange = editorLiveUpdate;
 editorReverse.onchange = editorLiveUpdate;
+editorEqBass.oninput = editorLiveUpdate;
+editorEqMid.oninput = editorLiveUpdate;
+editorEqTreble.oninput = editorLiveUpdate;
+editorLowPass.oninput = editorLiveUpdate;
+editorHighPass.oninput = editorLiveUpdate;
+editorBandPass.oninput = editorLiveUpdate;
+editorReverbMix.oninput = editorLiveUpdate;
+editorDelayMix.oninput = editorLiveUpdate;
+editorCompressor.onchange = editorLiveUpdate;
+editorLimiter.onchange = editorLiveUpdate;
+editorChorusMix.oninput = editorLiveUpdate;
+editorFlangerMix.oninput = editorLiveUpdate;
+editorPhaserMix.oninput = editorLiveUpdate;
+editorDistortion.oninput = editorLiveUpdate;
+editorSaturation.oninput = editorLiveUpdate;
+editorGlitch.oninput = editorLiveUpdate;
+editorStutterMs.oninput = editorLiveUpdate;
+editorFreeze.oninput = editorLiveUpdate;
+editorVocalMorph.oninput = editorLiveUpdate;
+editorAutoTune.oninput = editorLiveUpdate;
+editorQuantize.oninput = editorLiveUpdate;
 editorKeyShift.oninput = editorLiveUpdate;
 editorVoice.onchange = editorLiveUpdate;
 
@@ -1034,6 +1336,36 @@ editorResetBtn.onclick = safeAsync(async () => {
   editorPitchValueNum = 0;
   editorToneValueNum = 0;
   editorVoice.value = "natural";
+  editorGainDb.value = "0";
+  editorFadeIn.value = "0";
+  editorFadeOut.value = "0";
+  editorTempoPercent.value = "100";
+  editorNormalize.checked = false;
+  editorReverse.checked = false;
+  editorLoop.checked = false;
+  editorKeyShift.value = "0";
+  editorEqBass.value = "0";
+  editorEqMid.value = "0";
+  editorEqTreble.value = "0";
+  editorLowPass.value = "20000";
+  editorHighPass.value = "0";
+  editorBandPass.value = "0";
+  editorReverbMix.value = "0";
+  editorDelayMix.value = "0";
+  editorCompressor.checked = false;
+  editorLimiter.checked = false;
+  editorChorusMix.value = "0";
+  editorFlangerMix.value = "0";
+  editorPhaserMix.value = "0";
+  editorDistortion.value = "0";
+  editorSaturation.value = "0";
+  editorGlitch.value = "0";
+  editorStutterMs.value = "0";
+  editorFreeze.value = "0";
+  editorVocalMorph.value = "0";
+  editorAutoTune.value = "0";
+  editorQuantize.value = "0";
+  editorDetectedBpm.value = "--";
   await recalcEditorProcessedBuffer();
 });
 

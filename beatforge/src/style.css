@@ -696,3 +696,12 @@ button:disabled {
   transform: rotate(var(--knob-rotation)) translateY(-14px);
   box-shadow: 0 0 8px rgba(255, 209, 102, 0.35);
 }
+
+.editor-section-title {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  color: var(--accent2);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
