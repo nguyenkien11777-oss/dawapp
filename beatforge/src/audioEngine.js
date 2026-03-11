@@ -51,7 +51,7 @@ export class AudioEngine {
     }
   }
 
-  playBuffer({ buffer, gainValue, when }) {
+  playBuffer({ buffer, gainValue, when, loop = false }) {
     if (!buffer) return;
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
@@ -61,6 +61,7 @@ export class AudioEngine {
     };
     gain.gain.value = Math.max(0, Math.min(1, gainValue));
     source.buffer = buffer;
+    source.loop = Boolean(loop);
     source.connect(gain);
     gain.connect(this.masterGain);
     source.addEventListener("ended", release, { once: true });
