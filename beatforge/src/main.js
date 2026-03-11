@@ -22,11 +22,15 @@ const newProjectBtn = document.getElementById("newProjectBtn");
 const projectTitle = document.getElementById("projectTitle");
 const fileMenuBtn = document.getElementById("fileMenuBtn");
 const optionMenuBtn = document.getElementById("optionMenuBtn");
+const importMenuBtn = document.getElementById("importMenuBtn");
 const fileMenu = document.getElementById("fileMenu");
 const optionMenu = document.getElementById("optionMenu");
+const importMenu = document.getElementById("importMenu");
 const menuSave = document.getElementById("menuSave");
 const menuSaveAs = document.getElementById("menuSaveAs");
 const menuRename = document.getElementById("menuRename");
+const menuImportWav = document.getElementById("menuImportWav");
+const toolAudioEditor = document.getElementById("toolAudioEditor");
 const toolTrim = document.getElementById("toolTrim");
 const toolNormalize = document.getElementById("toolNormalize");
 const toolReverse = document.getElementById("toolReverse");
@@ -48,6 +52,25 @@ const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
 const modalBody = document.getElementById("modalBody");
 const modalActions = document.getElementById("modalActions");
+const audioEditorProjectTitle = document.getElementById("audioEditorProjectTitle");
+const audioEditorBackBtn = document.getElementById("audioEditorBackBtn");
+const editorRecSelect = document.getElementById("editorRecSelect");
+const editorPreviewBtn = document.getElementById("editorPreviewBtn");
+const editorWaveBars = document.getElementById("editorWaveBars");
+const editorTrimStart = document.getElementById("editorTrimStart");
+const editorTrimEnd = document.getElementById("editorTrimEnd");
+const editorPitch = document.getElementById("editorPitch");
+const editorPitchValue = document.getElementById("editorPitchValue");
+const editorTone = document.getElementById("editorTone");
+const editorToneValue = document.getElementById("editorToneValue");
+const editorVoice = document.getElementById("editorVoice");
+const editorResetBtn = document.getElementById("editorResetBtn");
+const editorApplyBtn = document.getElementById("editorApplyBtn");
+const drumImportInput = document.createElement("input");
+drumImportInput.type = "file";
+drumImportInput.accept = ".wav,audio/wav";
+drumImportInput.hidden = true;
+document.body.appendChild(drumImportInput);
 
 const audioEngine = new AudioEngine();
 const ui = new UI();
@@ -85,6 +108,10 @@ let smoothSeekEnabled = true;
 let musicNotesRunning = false;
 let musicNoteRafId = null;
 let musicNoteLastSpawn = 0;
+let editorSelectedRecRow = null;
+let editorSourceBuffer = null;
+let editorProcessedBuffer = null;
+let editorWaveRenderToken = 0;
 const MUSIC_NOTE_MIN_INTERVAL_MS = 580;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
@@ -106,6 +133,13 @@ function safeAsync(handler) {
   return async (...args) => {
     try { await handler(...args); } catch (err) { console.error("Unhandled UI async error:", err); }
   };
+}
+
+function errorMessage(error) {
+  if (!error) return "unknown error";
+  if (typeof error === "string") return error;
+  if (error.message) return error.message;
+  try { return JSON.stringify(error); } catch { return String(error); }
 }
 
 async function runModalOperation(task) {
@@ -143,12 +177,18 @@ function setMusicSourceFromBlob(blob) {
 function openMenu(menu) {
   fileMenu.hidden = menu !== fileMenu;
   optionMenu.hidden = menu !== optionMenu;
+  importMenu.hidden = menu !== importMenu;
 }
 
-function closeMenus() { fileMenu.hidden = true; optionMenu.hidden = true; }
+function closeMenus() { fileMenu.hidden = true; optionMenu.hidden = true; importMenu.hidden = true; }
 
 document.addEventListener("click", (e) => {
-  if (!fileMenuBtn.contains(e.target) && !fileMenu.contains(e.target) && !optionMenuBtn.contains(e.target) && !optionMenu.contains(e.target)) {
+  if (!fileMenuBtn.contains(e.target)
+    && !fileMenu.contains(e.target)
+    && !optionMenuBtn.contains(e.target)
+    && !optionMenu.contains(e.target)
+    && !importMenuBtn.contains(e.target)
+    && !importMenu.contains(e.target)) {
     closeMenus();
   }
 });
@@ -346,7 +386,9 @@ function clearMasterTimer() {
 
 function updateHeader() {
   const dirty = projectManager.dirty ? " *" : "";
-  projectTitle.textContent = `${projectManager.currentProject ?? "No Project"}${dirty}`;
+  const title = `${projectManager.currentProject ?? "No Project"}${dirty}`;
+  projectTitle.textContent = title;
+  if (audioEditorProjectTitle) audioEditorProjectTitle.textContent = title;
 }
 
 async function loadMusicFromState() {
@@ -423,6 +465,149 @@ async function persistRecordedBuffer(rowIndex, buffer) {
   }
 }
 
+async function renderProcessedBuffer(source, payload = {}) {
+  const semitone = Number(payload.pitchSemitone || 0);
+  const tone = Number(payload.tone || 0);
+  const voice = payload.voice || "natural";
+  const playbackRate = Math.max(0.0625, Math.min(16, Math.pow(2, semitone / 12)));
+  const outLength = Math.max(1, Math.ceil(source.length / playbackRate));
+  const offline = new OfflineAudioContext(source.numberOfChannels, outLength, source.sampleRate);
+  const src = offline.createBufferSource();
+  src.buffer = source;
+  src.playbackRate.value = playbackRate;
+
+  const toneFilter = offline.createBiquadFilter();
+  toneFilter.type = "peaking";
+  toneFilter.frequency.value = 1800;
+  toneFilter.Q.value = 0.8;
+  toneFilter.gain.value = Math.max(-12, Math.min(12, tone));
+
+  const voiceFilter = offline.createBiquadFilter();
+  voiceFilter.type = "peaking";
+  if (voice === "warm") {
+    voiceFilter.frequency.value = 380;
+    voiceFilter.gain.value = 4;
+  } else if (voice === "bright") {
+    voiceFilter.frequency.value = 3400;
+    voiceFilter.gain.value = 5;
+  } else {
+    voiceFilter.frequency.value = 1200;
+    voiceFilter.gain.value = 0;
+  }
+  voiceFilter.Q.value = 0.9;
+
+  src.connect(toneFilter);
+  toneFilter.connect(voiceFilter);
+  voiceFilter.connect(offline.destination);
+  src.start(0);
+  return offline.startRendering();
+}
+
+function buildWaveBarsHtml(buffer) {
+  if (!buffer) return "";
+  const bars = 92;
+  const ch = buffer.getChannelData(0);
+  const perBar = Math.max(1, Math.floor(ch.length / bars));
+  let graph = "";
+  for (let i = 0; i < bars; i += 1) {
+    const start = i * perBar;
+    const end = Math.min(ch.length, start + perBar);
+    let peak = 0;
+    for (let k = start; k < end; k += 1) peak = Math.max(peak, Math.abs(ch[k]));
+    const h = Math.max(5, Math.round(peak * 78));
+    graph += `<span style="height:${h}px"></span>`;
+  }
+  return graph;
+}
+
+function getSelectedEditorRow() {
+  if (editorSelectedRecRow == null) return null;
+  return projectManager.state.sequencer.userRows[editorSelectedRecRow] ?? null;
+}
+
+async function recalcEditorProcessedBuffer() {
+  const row = getSelectedEditorRow();
+  if (!row?.samplePath) {
+    editorSourceBuffer = null;
+    editorProcessedBuffer = null;
+    editorWaveBars.innerHTML = "";
+    return;
+  }
+  const source = sampleBuffers.get(row.samplePath);
+  if (!source) {
+    editorSourceBuffer = null;
+    editorProcessedBuffer = null;
+    editorWaveBars.innerHTML = "";
+    return;
+  }
+
+  editorSourceBuffer = source;
+  const startSec = Math.max(0, Number(editorTrimStart.value || 0));
+  const endSec = Math.max(startSec, Number(editorTrimEnd.value || source.duration));
+  const pitchSemitone = Number(editorPitch.value || 0);
+  const tone = Number(editorTone.value || 0);
+  const voice = editorVoice.value;
+  editorPitchValue.textContent = `${pitchSemitone} st`;
+  editorToneValue.textContent = tone.toFixed(1);
+
+  const token = ++editorWaveRenderToken;
+  const startFrame = Math.min(source.length, Math.floor(startSec * source.sampleRate));
+  const endFrame = Math.min(source.length, Math.floor(endSec * source.sampleRate));
+  const len = Math.max(1, endFrame - startFrame);
+  const trimmed = audioEngine.context.createBuffer(source.numberOfChannels, len, source.sampleRate);
+  for (let c = 0; c < source.numberOfChannels; c += 1) trimmed.copyToChannel(source.getChannelData(c).slice(startFrame, endFrame), c);
+  const processed = await renderProcessedBuffer(trimmed, { pitchSemitone, tone, voice });
+  if (token !== editorWaveRenderToken) return;
+  editorProcessedBuffer = processed;
+  editorWaveBars.innerHTML = buildWaveBarsHtml(processed);
+}
+
+function hydrateEditorRecSelector() {
+  editorRecSelect.innerHTML = "";
+  projectManager.state.sequencer.userRows.forEach((row, idx) => {
+    const opt = document.createElement("option");
+    opt.value = String(idx);
+    opt.textContent = `REC ${idx + 1}${row.samplePath ? "" : " (no audio)"}`;
+    editorRecSelect.appendChild(opt);
+  });
+}
+
+async function openAudioEditorScreen() {
+  if (inFlightSave || inFlightRecordingPersist) {
+    ui.log("Cannot open audio editor while save/persist is in progress.");
+    return;
+  }
+  if (!projectManager.currentProject) return;
+  closeMenus();
+  audioEditorProjectTitle.textContent = projectManager.currentProject;
+  hydrateEditorRecSelector();
+  if (editorRecSelect.options.length === 0) {
+    await runModalOperation(() => showModalError("No REC rows available."));
+    return;
+  }
+
+  if (editorSelectedRecRow == null || !projectManager.state.sequencer.userRows[editorSelectedRecRow]) {
+    editorSelectedRecRow = Number(lastClickedRecRow ?? 0);
+  }
+  editorSelectedRecRow = Math.max(0, Math.min(projectManager.state.sequencer.userRows.length - 1, editorSelectedRecRow));
+  editorRecSelect.value = String(editorSelectedRecRow);
+  const row = getSelectedEditorRow();
+  const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
+  const duration = source?.duration ?? 0;
+  editorTrimStart.value = "0";
+  editorTrimEnd.value = duration.toFixed(2);
+  editorPitch.value = "0";
+  editorTone.value = "0";
+  editorVoice.value = "natural";
+  await recalcEditorProcessedBuffer();
+  if (editorProcessedBuffer) {
+    await audioEngine.ensureRunning();
+    const gain = row?.volume ?? 1;
+    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: gain, when: audioEngine.context.currentTime });
+  }
+  ui.showAudioEditor();
+}
+
 async function applyAudioTool(tool, payload = {}) {
   if (inFlightSave || inFlightRecordingPersist) return ui.log("Cannot apply audio tools while save/persist is in progress.");
   if (lastClickedRecRow == null || inFlightAudioTool) return ui.log("Select a REC row first.");
@@ -458,6 +643,8 @@ async function applyAudioTool(tool, payload = {}) {
       const len = Math.max(1, endFrame - startFrame);
       out = audioEngine.context.createBuffer(source.numberOfChannels, len, source.sampleRate);
       for (let c = 0; c < source.numberOfChannels; c += 1) out.copyToChannel(source.getChannelData(c).slice(startFrame, endFrame), c);
+    } else if (tool === "editor") {
+      out = await renderProcessedBuffer(source, payload);
     }
     await persistRecordedBuffer(lastClickedRecRow, out);
     ui.log(`${tool} applied on REC ${lastClickedRecRow + 1}`);
@@ -538,6 +725,7 @@ async function openProject(name) {
   await projectManager.loadProject(name);
   activeRecRow = null;
   lastClickedRecRow = null;
+  editorSelectedRecRow = null;
   missingSampleWarnings.clear();
   updateHeader();
   await loadMusicFromState();
@@ -641,6 +829,7 @@ recorder.on("record-stop", async ({ cellIndex, buffer }) => {
 
 fileMenuBtn.onclick = () => openMenu(fileMenu);
 optionMenuBtn.onclick = () => openMenu(optionMenu);
+importMenuBtn.onclick = () => openMenu(importMenu);
 
 menuSave.onclick = safeAsync(async () => { closeMenus(); await saveCurrentProject(); });
 menuSaveAs.onclick = safeAsync(async () => {
@@ -663,6 +852,107 @@ menuRename.onclick = safeAsync(async () => {
   await projectManager.renameProject(projectManager.currentProject, name);
   updateHeader();
   await refreshDashboard();
+});
+
+toolAudioEditor.onclick = safeAsync(async () => {
+  await openAudioEditorScreen();
+});
+
+audioEditorBackBtn.onclick = safeAsync(async () => {
+  ui.showSequencer();
+  await renderSequencer();
+});
+
+editorRecSelect.onchange = safeAsync(async () => {
+  editorSelectedRecRow = Number(editorRecSelect.value);
+  const row = getSelectedEditorRow();
+  const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
+  const duration = source?.duration ?? 0;
+  editorTrimStart.value = "0";
+  editorTrimEnd.value = duration.toFixed(2);
+  editorPitch.value = "0";
+  editorTone.value = "0";
+  editorVoice.value = "natural";
+  await recalcEditorProcessedBuffer();
+  if (editorProcessedBuffer) {
+    await audioEngine.ensureRunning();
+    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime });
+  }
+});
+
+const editorLiveUpdate = safeAsync(async () => {
+  await recalcEditorProcessedBuffer();
+});
+editorTrimStart.oninput = editorLiveUpdate;
+editorTrimEnd.oninput = editorLiveUpdate;
+editorPitch.oninput = editorLiveUpdate;
+editorTone.oninput = editorLiveUpdate;
+editorVoice.onchange = editorLiveUpdate;
+
+editorPreviewBtn.onclick = safeAsync(async () => {
+  if (!editorProcessedBuffer) {
+    ui.log("No processed audio to preview.");
+    return;
+  }
+  const row = getSelectedEditorRow();
+  await audioEngine.ensureRunning();
+  audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime });
+});
+
+editorResetBtn.onclick = safeAsync(async () => {
+  const row = getSelectedEditorRow();
+  const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
+  editorTrimStart.value = "0";
+  editorTrimEnd.value = (source?.duration ?? 0).toFixed(2);
+  editorPitch.value = "0";
+  editorTone.value = "0";
+  editorVoice.value = "natural";
+  await recalcEditorProcessedBuffer();
+});
+
+editorApplyBtn.onclick = safeAsync(async () => {
+  if (inFlightSave || inFlightRecordingPersist || inFlightAudioTool) {
+    ui.log("Cannot save audio editor changes while save/persist/tool is in progress.");
+    return;
+  }
+  const rowIndex = Number(editorRecSelect.value);
+  if (!Number.isInteger(rowIndex)) {
+    ui.log("Select a REC row first.");
+    return;
+  }
+  if (!editorProcessedBuffer) {
+    ui.log("Nothing to save in audio editor.");
+    return;
+  }
+  lastClickedRecRow = rowIndex;
+  await persistRecordedBuffer(rowIndex, editorProcessedBuffer);
+  ui.log(`Audio editor changes saved on REC ${rowIndex + 1}`);
+  await recalcEditorProcessedBuffer();
+});
+
+menuImportWav.onclick = safeAsync(async () => {
+  closeMenus();
+  const yes = await runModalOperation(() => showModal({
+    title: "Import WAV to Preset Drum Rack",
+    html: "<p>You can add a WAV file into this project drum library. Only .wav is accepted. Imported file will be copied to <code>/assets/drums</code>.</p>",
+    buttons: [{ label: "Cancel", value: false }, { label: "Choose WAV", value: true }]
+  }));
+  if (!yes) return;
+  drumImportInput.value = "";
+  drumImportInput.click();
+});
+
+drumImportInput.onchange = safeAsync(async () => {
+  const file = drumImportInput.files?.[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".wav")) {
+    await runModalOperation(() => showModalError("INVALID_AUDIO_TYPE: only .wav files are accepted."));
+    return;
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const out = await projectManager.importDrumWav(file.name, bytes);
+  ui.log(`Imported WAV: ${out}`);
+  await renderSequencer();
 });
 
 toolTrim.onclick = safeAsync(async () => {
@@ -778,6 +1068,7 @@ recordMasterBtn.onclick = safeAsync(async () => {
   clearMasterTimer();
   ui.setTimer(0);
   try {
+    await projectManager.ffmpegPreflight();
     const wav = await exportManager.renderMasterWav();
     await projectManager.writeMasterWav(wav);
     projectManager.state.render.hasMasterWav = true;
@@ -795,7 +1086,11 @@ recordMasterBtn.onclick = safeAsync(async () => {
       ui.log("Export canceled. master.wav kept in project.");
     }
   } catch (error) {
-    ui.log(`Master record finalize failed: ${error?.message ?? "unknown error"}`);
+    const message = errorMessage(error);
+    ui.log(`Master record finalize failed: ${message}`);
+    if (message.includes("FFMPEG_NOT_FOUND")) {
+      await runModalOperation(() => showModalError("Không thể xuất MP3 vì máy chưa có encoder. master.wav đã được giữ trong project; hãy cài ffmpeg rồi thử lại MP3."));
+    }
   } finally {
     inFlightExportMp3 = false;
     inFlightMasterExport = false;

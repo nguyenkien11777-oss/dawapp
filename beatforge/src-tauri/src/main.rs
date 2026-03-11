@@ -253,6 +253,15 @@ fn export_mp3_from_master_to_path(project: String, output_path: String) -> Resul
 }
 
 #[tauri::command]
+fn ffmpeg_preflight() -> Result<(), String> {
+    if ffmpeg::ffmpeg_available() {
+        Ok(())
+    } else {
+        Err("FFMPEG_NOT_FOUND: ffmpeg is not available in PATH".into())
+    }
+}
+
+#[tauri::command]
 fn path_exists(path: String) -> Result<bool, String> {
     Ok(PathBuf::from(path).exists())
 }
@@ -275,6 +284,32 @@ fn write_project_music_file(project: String, file_name: String, bytes: Vec<u8>) 
     let target = root.join(&relative);
     safe_write(&target, &bytes)?;
     Ok(relative.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn import_drum_wav(file_name: String, bytes: Vec<u8>) -> Result<String, String> {
+    let sanitized = Path::new(&file_name)
+        .file_name()
+        .ok_or("invalid file name")?
+        .to_string_lossy()
+        .to_string();
+    let ext = Path::new(&sanitized)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !ext.eq_ignore_ascii_case("wav") {
+        return Err("INVALID_AUDIO_TYPE: only .wav files are accepted".into());
+    }
+
+    let mut dir = std::env::current_dir().map_err(|e| e.to_string())?;
+    if dir.ends_with("src-tauri") {
+        dir = dir.parent().ok_or("no parent")?.to_path_buf();
+    }
+    let drums_dir = dir.join("assets").join("drums");
+    fs::create_dir_all(&drums_dir).map_err(|e| e.to_string())?;
+    let target = drums_dir.join(sanitized);
+    safe_write(&target, &bytes)?;
+    Ok(target.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -365,8 +400,10 @@ fn main() {
             write_master_wav,
             export_mp3_from_master,
             export_mp3_from_master_to_path,
+            ffmpeg_preflight,
             pick_save_mp3_path,
             write_project_music_file,
+            import_drum_wav,
             list_drum_samples,
             read_file_bytes,
             read_project_file_bytes,

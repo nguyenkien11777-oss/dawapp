@@ -33,6 +33,7 @@
           <button id="optionMenuBtn" class="menu-btn">Option ▾</button>
           <div id="optionMenu" class="dropdown" hidden>
             <div class="dropdown-title">Audio Tools</div>
+            <button id="toolAudioEditor">🎛 REC Audio Editor</button>
             <button id="toolTrim">✂ Trim</button>
             <button id="toolNormalize">📈 Normalize</button>
             <button id="toolReverse">⟲ Reverse</button>
@@ -40,6 +41,12 @@
             <div class="dropdown-title">Music Player Settings</div>
             <label class="dropdown-label"><input id="musicSyncToggle" type="checkbox" /> Sync With Beat</label>
             <label class="dropdown-label"><input id="musicSmoothSeekToggle" type="checkbox" checked /> Smooth Seek (low-power)</label>
+          </div>
+        </div>
+        <div class="menu">
+          <button id="importMenuBtn" class="menu-btn">Import ▾</button>
+          <div id="importMenu" class="dropdown" hidden>
+            <button id="menuImportWav">📥 Import WAV to Drum Rack</button>
           </div>
         </div>
       </div>
@@ -110,6 +117,66 @@
     </footer>
 
     <pre id="statusLog" class="panel"></pre>
+  </section>
+
+
+  <section id="audioEditorScreen" class="studio-screen" hidden>
+    <header class="topbar panel">
+      <div class="menu-left">
+        <h3 style="margin:0">REC Audio Editor</h3>
+      </div>
+      <div class="head-right">
+        <strong id="audioEditorProjectTitle">No Project</strong>
+        <button id="audioEditorBackBtn">Back to Sequencer</button>
+      </div>
+    </header>
+
+    <main class="editor-layout panel">
+      <aside class="editor-sidebar">
+        <h4>REC Row Selection</h4>
+        <label>Choose REC Row
+          <select id="editorRecSelect"></select>
+        </label>
+        <button id="editorPreviewBtn">▶ Preview Selected</button>
+        <small class="editor-help">Tip: chọn REC bất kỳ để chỉnh sửa, không phụ thuộc REC vừa ghi.</small>
+      </aside>
+
+      <section class="editor-main">
+        <div class="editor-wave-panel">
+          <div class="editor-wave-title">Processed Wave View</div>
+          <div id="editorWaveBars" class="editor-wave-bars" aria-label="Processed waveform bars"></div>
+        </div>
+
+        <div class="editor-controls-grid">
+          <label>Trim Start (sec)
+            <input id="editorTrimStart" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>Trim End (sec)
+            <input id="editorTrimEnd" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>Pitch (semitone, -48..48)
+            <input id="editorPitch" type="range" min="-48" max="48" step="1" value="0" />
+          </label>
+          <div class="editor-readout" id="editorPitchValue">0 st</div>
+          <label>Tone (-24..24)
+            <input id="editorTone" type="range" min="-24" max="24" step="0.5" value="0" />
+          </label>
+          <div class="editor-readout" id="editorToneValue">0.0</div>
+          <label>Voice Character
+            <select id="editorVoice">
+              <option value="natural">Natural</option>
+              <option value="warm">Warm</option>
+              <option value="bright">Bright</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="editor-actions">
+          <button id="editorResetBtn">Reset</button>
+          <button id="editorApplyBtn">💾 Save to REC Row</button>
+        </div>
+      </section>
+    </main>
   </section>
 
   <div id="modalOverlay" class="modal-overlay" hidden>
