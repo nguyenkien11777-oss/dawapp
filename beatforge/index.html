@@ -139,6 +139,10 @@
         </label>
         <button id="editorPreviewBtn">▶ Preview Selected</button>
         <small class="editor-help">Tip: chọn REC bất kỳ để chỉnh sửa, không phụ thuộc REC vừa ghi.</small>
+        <div class="editor-actions-stack">
+          <button id="editorResetBtn">Reset</button>
+          <button id="editorApplyBtn">💾 Save to REC Row</button>
+        </div>
       </aside>
 
       <section class="editor-main">
@@ -204,6 +208,7 @@
           </label>
 
           <div class="editor-section-title">v3.5.2 Mix</div>
+          <div class="editor-note">Điều chỉnh cân bằng và không gian âm thanh (EQ, filter, reverb, delay, dynamics).</div>
           <label>Bass (dB)
             <input id="editorEqBass" type="range" min="-18" max="18" step="0.5" value="0" />
           </label>
@@ -236,6 +241,7 @@
           </label>
 
           <div class="editor-section-title">v3.5.3 Creative</div>
+          <div class="editor-note">Tạo màu sắc sáng tạo: modulation, saturation, glitch và biến dạng giọng.</div>
           <label>Chorus Mix (%)
             <input id="editorChorusMix" type="range" min="0" max="100" step="1" value="0" />
           </label>
@@ -265,6 +271,7 @@
           </label>
 
           <div class="editor-section-title">v3.5.4 Intelligent</div>
+          <div class="editor-note">Phân tích & hỗ trợ thông minh: AutoTune/Quantize nâng cao và ước lượng BPM.</div>
           <label>AutoTune Strength (%)
             <input id="editorAutoTune" type="range" min="0" max="100" step="1" value="0" />
           </label>
@@ -276,10 +283,6 @@
           </label>
         </div>
 
-        <div class="editor-actions">
-          <button id="editorResetBtn">Reset</button>
-          <button id="editorApplyBtn">💾 Save to REC Row</button>
-        </div>
       </section>
     </main>
   </section>

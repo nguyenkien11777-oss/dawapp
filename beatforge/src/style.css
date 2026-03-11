@@ -575,6 +575,11 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
 }
 .editor-sidebar h4 {
   margin: 0;
@@ -649,6 +654,10 @@ button:disabled {
   .editor-layout {
     grid-template-columns: 1fr;
   }
+  .editor-sidebar {
+    position: static;
+    max-height: none;
+  }
 }
 
 .editor-knob-wrap {
@@ -684,16 +693,18 @@ button:disabled {
   position: absolute;
   inset: 4px;
   border-radius: 999px;
-  background: repeating-conic-gradient(from -135deg, rgba(255,255,255,0.34) 0deg 2deg, transparent 2deg 10deg);
-  opacity: 0.35;
+  background: repeating-conic-gradient(from -135deg, rgba(255,255,255,0.45) 0deg 1.2deg, transparent 1.2deg 12deg);
+  opacity: 0.55;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
 }
 .editor-knob-pointer {
   width: 4px;
-  height: 30px;
+  height: 22px;
   border-radius: 4px;
   background: linear-gradient(180deg, #ffd166, #ff8a00);
-  transform-origin: center 36px;
-  transform: rotate(var(--knob-rotation)) translateY(-14px);
+  transform-origin: center 30px;
+  transform: rotate(var(--knob-rotation)) translateY(-10px);
   box-shadow: 0 0 8px rgba(255, 209, 102, 0.35);
 }
 
@@ -704,4 +715,22 @@ button:disabled {
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.editor-note {
+  grid-column: 1 / -1;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: -4px;
+  line-height: 1.4;
+}
+.editor-actions-stack {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: grid;
+  gap: 10px;
+}
+.editor-actions-stack button {
+  width: 100%;
 }

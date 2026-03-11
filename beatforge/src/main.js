@@ -386,6 +386,12 @@ function stopMusicPlayback() {
   stopMusicNotes();
 }
 
+function stopAllAudiblePlayback() {
+  clearMasterTimer();
+  stopSequencerAudio();
+  stopMusicPlayback();
+}
+
 function syncTransportLocks() {
   const locked = isTransportActive();
   addRecRowBtn.disabled = locked;
@@ -765,6 +771,7 @@ function scheduleEditorStepPreview() {
   editorDetentPreviewTimer = setTimeout(async () => {
     if (!editorProcessedBuffer) return;
     const row = getSelectedEditorRow();
+    stopSequencerAudio();
     await audioEngine.ensureRunning();
     audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime, loop: Boolean(editorLoop.checked) });
   }, 140);
@@ -902,6 +909,7 @@ async function openAudioEditorScreen() {
   }
   if (!projectManager.currentProject) return;
   closeMenus();
+  stopAllAudiblePlayback();
   audioEditorProjectTitle.textContent = projectManager.currentProject;
   hydrateEditorRecSelector();
   if (editorRecSelect.options.length === 0) {
@@ -1212,6 +1220,7 @@ toolAudioEditor.onclick = safeAsync(async () => {
 });
 
 audioEditorBackBtn.onclick = safeAsync(async () => {
+  stopAllAudiblePlayback();
   ui.showSequencer();
   await renderSequencer();
 });
@@ -1267,6 +1276,11 @@ const editorLiveUpdate = safeAsync(async () => {
   await recalcEditorProcessedBuffer();
 });
 
+const editorLiveUpdateWithPreview = safeAsync(async () => {
+  await recalcEditorProcessedBuffer();
+  scheduleEditorStepPreview();
+});
+
 setupEditorKnob({
   knobEl: editorPitchKnob,
   min: -48,
@@ -1286,37 +1300,37 @@ setupEditorKnob({
   setValue: (value) => { editorToneValueNum = value; editorToneValue.textContent = value.toFixed(1); editorLiveUpdate(); },
   onStepCross: async () => { await recalcEditorProcessedBuffer(); scheduleEditorStepPreview(); }
 });
-editorTrimStart.oninput = editorLiveUpdate;
-editorTrimEnd.oninput = editorLiveUpdate;
-editorGainDb.oninput = editorLiveUpdate;
-editorFadeIn.oninput = editorLiveUpdate;
-editorFadeOut.oninput = editorLiveUpdate;
-editorTempoPercent.oninput = editorLiveUpdate;
-editorNormalize.onchange = editorLiveUpdate;
-editorReverse.onchange = editorLiveUpdate;
-editorEqBass.oninput = editorLiveUpdate;
-editorEqMid.oninput = editorLiveUpdate;
-editorEqTreble.oninput = editorLiveUpdate;
-editorLowPass.oninput = editorLiveUpdate;
-editorHighPass.oninput = editorLiveUpdate;
-editorBandPass.oninput = editorLiveUpdate;
-editorReverbMix.oninput = editorLiveUpdate;
-editorDelayMix.oninput = editorLiveUpdate;
-editorCompressor.onchange = editorLiveUpdate;
-editorLimiter.onchange = editorLiveUpdate;
-editorChorusMix.oninput = editorLiveUpdate;
-editorFlangerMix.oninput = editorLiveUpdate;
-editorPhaserMix.oninput = editorLiveUpdate;
-editorDistortion.oninput = editorLiveUpdate;
-editorSaturation.oninput = editorLiveUpdate;
-editorGlitch.oninput = editorLiveUpdate;
-editorStutterMs.oninput = editorLiveUpdate;
-editorFreeze.oninput = editorLiveUpdate;
-editorVocalMorph.oninput = editorLiveUpdate;
-editorAutoTune.oninput = editorLiveUpdate;
-editorQuantize.oninput = editorLiveUpdate;
-editorKeyShift.oninput = editorLiveUpdate;
-editorVoice.onchange = editorLiveUpdate;
+editorTrimStart.oninput = editorLiveUpdateWithPreview;
+editorTrimEnd.oninput = editorLiveUpdateWithPreview;
+editorGainDb.oninput = editorLiveUpdateWithPreview;
+editorFadeIn.oninput = editorLiveUpdateWithPreview;
+editorFadeOut.oninput = editorLiveUpdateWithPreview;
+editorTempoPercent.oninput = editorLiveUpdateWithPreview;
+editorNormalize.onchange = editorLiveUpdateWithPreview;
+editorReverse.onchange = editorLiveUpdateWithPreview;
+editorEqBass.oninput = editorLiveUpdateWithPreview;
+editorEqMid.oninput = editorLiveUpdateWithPreview;
+editorEqTreble.oninput = editorLiveUpdateWithPreview;
+editorLowPass.oninput = editorLiveUpdateWithPreview;
+editorHighPass.oninput = editorLiveUpdateWithPreview;
+editorBandPass.oninput = editorLiveUpdateWithPreview;
+editorReverbMix.oninput = editorLiveUpdateWithPreview;
+editorDelayMix.oninput = editorLiveUpdateWithPreview;
+editorCompressor.onchange = editorLiveUpdateWithPreview;
+editorLimiter.onchange = editorLiveUpdateWithPreview;
+editorChorusMix.oninput = editorLiveUpdateWithPreview;
+editorFlangerMix.oninput = editorLiveUpdateWithPreview;
+editorPhaserMix.oninput = editorLiveUpdateWithPreview;
+editorDistortion.oninput = editorLiveUpdateWithPreview;
+editorSaturation.oninput = editorLiveUpdateWithPreview;
+editorGlitch.oninput = editorLiveUpdateWithPreview;
+editorStutterMs.oninput = editorLiveUpdateWithPreview;
+editorFreeze.oninput = editorLiveUpdateWithPreview;
+editorVocalMorph.oninput = editorLiveUpdateWithPreview;
+editorAutoTune.oninput = editorLiveUpdateWithPreview;
+editorQuantize.oninput = editorLiveUpdateWithPreview;
+editorKeyShift.oninput = editorLiveUpdateWithPreview;
+editorVoice.onchange = editorLiveUpdateWithPreview;
 
 editorPreviewBtn.onclick = safeAsync(async () => {
   if (!editorProcessedBuffer) {
@@ -1324,8 +1338,9 @@ editorPreviewBtn.onclick = safeAsync(async () => {
     return;
   }
   const row = getSelectedEditorRow();
+  stopSequencerAudio();
   await audioEngine.ensureRunning();
-  audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime });
+  audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime, loop: Boolean(editorLoop.checked) });
 });
 
 editorResetBtn.onclick = safeAsync(async () => {
@@ -1459,6 +1474,7 @@ backBtn.onclick = safeAsync(async () => {
   const ok = await confirmSaveBeforeLeave({ promptHtml: "<p>Save before returning to Dashboard?</p>" });
   if (!ok) return;
   await transitionTransport(TRANSPORT_STATE.IDLE);
+  stopAllAudiblePlayback();
   ui.showDashboard();
   await refreshDashboard();
 });
