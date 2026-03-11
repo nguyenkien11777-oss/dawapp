@@ -59,10 +59,19 @@ const editorPreviewBtn = document.getElementById("editorPreviewBtn");
 const editorWaveBars = document.getElementById("editorWaveBars");
 const editorTrimStart = document.getElementById("editorTrimStart");
 const editorTrimEnd = document.getElementById("editorTrimEnd");
-const editorPitch = document.getElementById("editorPitch");
+const editorPitchKnob = document.getElementById("editorPitchKnob");
 const editorPitchValue = document.getElementById("editorPitchValue");
-const editorTone = document.getElementById("editorTone");
+const editorToneKnob = document.getElementById("editorToneKnob");
 const editorToneValue = document.getElementById("editorToneValue");
+const editorGainDb = document.getElementById("editorGainDb");
+const editorFadeIn = document.getElementById("editorFadeIn");
+const editorFadeOut = document.getElementById("editorFadeOut");
+const editorTempoPercent = document.getElementById("editorTempoPercent");
+const editorNormalize = document.getElementById("editorNormalize");
+const editorReverse = document.getElementById("editorReverse");
+const editorLoop = document.getElementById("editorLoop");
+const editorKeyDetected = document.getElementById("editorKeyDetected");
+const editorKeyShift = document.getElementById("editorKeyShift");
 const editorVoice = document.getElementById("editorVoice");
 const editorResetBtn = document.getElementById("editorResetBtn");
 const editorApplyBtn = document.getElementById("editorApplyBtn");
@@ -112,6 +121,9 @@ let editorSelectedRecRow = null;
 let editorSourceBuffer = null;
 let editorProcessedBuffer = null;
 let editorWaveRenderToken = 0;
+let editorPitchValueNum = 0;
+let editorToneValueNum = 0;
+let editorDetentPreviewTimer = null;
 const MUSIC_NOTE_MIN_INTERVAL_MS = 580;
 
 const scheduler = new Scheduler(audioEngine, ({ step, when }) => {
@@ -469,7 +481,8 @@ async function renderProcessedBuffer(source, payload = {}) {
   const semitone = Number(payload.pitchSemitone || 0);
   const tone = Number(payload.tone || 0);
   const voice = payload.voice || "natural";
-  const playbackRate = Math.max(0.0625, Math.min(16, Math.pow(2, semitone / 12)));
+  const tempoFactor = Math.max(0.25, Math.min(4, Number(payload.tempoPercent || 100) / 100));
+  const playbackRate = Math.max(0.0625, Math.min(16, Math.pow(2, semitone / 12) * tempoFactor));
   const outLength = Math.max(1, Math.ceil(source.length / playbackRate));
   const offline = new OfflineAudioContext(source.numberOfChannels, outLength, source.sampleRate);
   const src = offline.createBufferSource();
@@ -525,6 +538,67 @@ function getSelectedEditorRow() {
   return projectManager.state.sequencer.userRows[editorSelectedRecRow] ?? null;
 }
 
+function setKnobVisual(knobEl, normalized) {
+  const deg = -135 + (normalized * 270);
+  knobEl.style.setProperty("--knob-rotation", `${deg}deg`);
+}
+
+function scheduleEditorStepPreview() {
+  if (editorDetentPreviewTimer) clearTimeout(editorDetentPreviewTimer);
+  editorDetentPreviewTimer = setTimeout(async () => {
+    if (!editorProcessedBuffer) return;
+    const row = getSelectedEditorRow();
+    await audioEngine.ensureRunning();
+    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: row?.volume ?? 1, when: audioEngine.context.currentTime, loop: Boolean(editorLoop.checked) });
+  }, 140);
+}
+
+function setupEditorKnob({ knobEl, min, max, step, getValue, setValue, onStepCross }) {
+  let dragging = false;
+  let lastY = 0;
+
+  const applyValue = (next, preview = false) => {
+    const prev = getValue();
+    const clamped = Math.max(min, Math.min(max, next));
+    const snapped = Math.round(clamped / step) * step;
+    const crossed = Math.round(prev / step) !== Math.round(snapped / step);
+    setValue(snapped);
+    const normalized = (snapped - min) / (max - min);
+    setKnobVisual(knobEl, normalized);
+    if (preview && crossed) onStepCross?.();
+  };
+
+  knobEl.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -step : step;
+    applyValue(getValue() + delta, true);
+  }, { passive: false });
+
+  knobEl.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    lastY = event.clientY;
+    knobEl.setPointerCapture?.(event.pointerId);
+  });
+
+  knobEl.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    const dy = lastY - event.clientY;
+    lastY = event.clientY;
+    applyValue(getValue() + (dy * step * 0.22), true);
+  });
+
+  const stopDrag = (event) => {
+    dragging = false;
+    if (event?.pointerId != null && knobEl.hasPointerCapture?.(event.pointerId)) knobEl.releasePointerCapture(event.pointerId);
+  };
+
+  knobEl.addEventListener("pointerup", stopDrag);
+  knobEl.addEventListener("pointercancel", stopDrag);
+  knobEl.addEventListener("dblclick", () => applyValue(0, true));
+
+  applyValue(getValue(), false);
+}
+
 async function recalcEditorProcessedBuffer() {
   const row = getSelectedEditorRow();
   if (!row?.samplePath) {
@@ -544,11 +618,11 @@ async function recalcEditorProcessedBuffer() {
   editorSourceBuffer = source;
   const startSec = Math.max(0, Number(editorTrimStart.value || 0));
   const endSec = Math.max(startSec, Number(editorTrimEnd.value || source.duration));
-  const pitchSemitone = Number(editorPitch.value || 0);
-  const tone = Number(editorTone.value || 0);
+  const pitchSemitone = Number(editorPitchValueNum || 0) + Number(editorKeyShift.value || 0);
+  const tone = Number(editorToneValueNum || 0);
   const voice = editorVoice.value;
-  editorPitchValue.textContent = `${pitchSemitone} st`;
-  editorToneValue.textContent = tone.toFixed(1);
+  editorPitchValue.textContent = `${editorPitchValueNum.toFixed(0)} st`;
+  editorToneValue.textContent = editorToneValueNum.toFixed(1);
 
   const token = ++editorWaveRenderToken;
   const startFrame = Math.min(source.length, Math.floor(startSec * source.sampleRate));
@@ -556,10 +630,38 @@ async function recalcEditorProcessedBuffer() {
   const len = Math.max(1, endFrame - startFrame);
   const trimmed = audioEngine.context.createBuffer(source.numberOfChannels, len, source.sampleRate);
   for (let c = 0; c < source.numberOfChannels; c += 1) trimmed.copyToChannel(source.getChannelData(c).slice(startFrame, endFrame), c);
-  const processed = await renderProcessedBuffer(trimmed, { pitchSemitone, tone, voice });
+  let stage = trimmed;
+  if (editorReverse.checked) {
+    const rev = audioEngine.context.createBuffer(stage.numberOfChannels, stage.length, stage.sampleRate);
+    for (let c = 0; c < stage.numberOfChannels; c += 1) rev.copyToChannel(Float32Array.from(stage.getChannelData(c)).reverse(), c);
+    stage = rev;
+  }
+
+  const tempoPercent = Math.max(25, Math.min(400, Number(editorTempoPercent.value || 100)));
+  const processed = await renderProcessedBuffer(stage, { pitchSemitone, tone, voice, tempoPercent });
+  const out = audioEngine.context.createBuffer(processed.numberOfChannels, processed.length, processed.sampleRate);
+  const gainScale = Math.pow(10, (Number(editorGainDb.value || 0) / 20));
+  const fadeInSec = Math.max(0, Number(editorFadeIn.value || 0));
+  const fadeOutSec = Math.max(0, Number(editorFadeOut.value || 0));
+  const fadeInFrames = Math.floor(fadeInSec * processed.sampleRate);
+  const fadeOutFrames = Math.floor(fadeOutSec * processed.sampleRate);
+  for (let c = 0; c < processed.numberOfChannels; c += 1) {
+    const src = processed.getChannelData(c);
+    const dst = new Float32Array(src.length);
+    for (let i = 0; i < src.length; i += 1) {
+      let amp = gainScale;
+      if (fadeInFrames > 0 && i < fadeInFrames) amp *= (i / fadeInFrames);
+      if (fadeOutFrames > 0 && i > src.length - fadeOutFrames) amp *= ((src.length - i) / Math.max(1, fadeOutFrames));
+      dst[i] = Math.max(-1, Math.min(1, src[i] * amp));
+    }
+    out.copyToChannel(dst, c);
+  }
+  if (editorNormalize.checked) audioEngine.normalizeBuffer(out);
+
   if (token !== editorWaveRenderToken) return;
-  editorProcessedBuffer = processed;
-  editorWaveBars.innerHTML = buildWaveBarsHtml(processed);
+  editorProcessedBuffer = out;
+  editorWaveBars.innerHTML = buildWaveBarsHtml(out);
+  editorKeyDetected.value = pitchSemitone >= 0 ? `Likely +${Math.round(pitchSemitone)} semitone shift` : `Likely ${Math.round(pitchSemitone)} semitone shift`;
 }
 
 function hydrateEditorRecSelector() {
@@ -596,8 +698,8 @@ async function openAudioEditorScreen() {
   const duration = source?.duration ?? 0;
   editorTrimStart.value = "0";
   editorTrimEnd.value = duration.toFixed(2);
-  editorPitch.value = "0";
-  editorTone.value = "0";
+  editorPitchValueNum = 0;
+  editorToneValueNum = 0;
   editorVoice.value = "natural";
   await recalcEditorProcessedBuffer();
   if (editorProcessedBuffer) {
@@ -870,8 +972,8 @@ editorRecSelect.onchange = safeAsync(async () => {
   const duration = source?.duration ?? 0;
   editorTrimStart.value = "0";
   editorTrimEnd.value = duration.toFixed(2);
-  editorPitch.value = "0";
-  editorTone.value = "0";
+  editorPitchValueNum = 0;
+  editorToneValueNum = 0;
   editorVoice.value = "natural";
   await recalcEditorProcessedBuffer();
   if (editorProcessedBuffer) {
@@ -883,10 +985,35 @@ editorRecSelect.onchange = safeAsync(async () => {
 const editorLiveUpdate = safeAsync(async () => {
   await recalcEditorProcessedBuffer();
 });
+
+setupEditorKnob({
+  knobEl: editorPitchKnob,
+  min: -48,
+  max: 48,
+  step: 1,
+  getValue: () => editorPitchValueNum,
+  setValue: (value) => { editorPitchValueNum = value; editorPitchValue.textContent = `${value.toFixed(0)} st`; editorLiveUpdate(); },
+  onStepCross: async () => { await recalcEditorProcessedBuffer(); scheduleEditorStepPreview(); }
+});
+
+setupEditorKnob({
+  knobEl: editorToneKnob,
+  min: -24,
+  max: 24,
+  step: 0.5,
+  getValue: () => editorToneValueNum,
+  setValue: (value) => { editorToneValueNum = value; editorToneValue.textContent = value.toFixed(1); editorLiveUpdate(); },
+  onStepCross: async () => { await recalcEditorProcessedBuffer(); scheduleEditorStepPreview(); }
+});
 editorTrimStart.oninput = editorLiveUpdate;
 editorTrimEnd.oninput = editorLiveUpdate;
-editorPitch.oninput = editorLiveUpdate;
-editorTone.oninput = editorLiveUpdate;
+editorGainDb.oninput = editorLiveUpdate;
+editorFadeIn.oninput = editorLiveUpdate;
+editorFadeOut.oninput = editorLiveUpdate;
+editorTempoPercent.oninput = editorLiveUpdate;
+editorNormalize.onchange = editorLiveUpdate;
+editorReverse.onchange = editorLiveUpdate;
+editorKeyShift.oninput = editorLiveUpdate;
 editorVoice.onchange = editorLiveUpdate;
 
 editorPreviewBtn.onclick = safeAsync(async () => {
@@ -904,8 +1031,8 @@ editorResetBtn.onclick = safeAsync(async () => {
   const source = row?.samplePath ? sampleBuffers.get(row.samplePath) : null;
   editorTrimStart.value = "0";
   editorTrimEnd.value = (source?.duration ?? 0).toFixed(2);
-  editorPitch.value = "0";
-  editorTone.value = "0";
+  editorPitchValueNum = 0;
+  editorToneValueNum = 0;
   editorVoice.value = "natural";
   await recalcEditorProcessedBuffer();
 });

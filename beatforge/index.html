@@ -154,20 +154,53 @@
           <label>Trim End (sec)
             <input id="editorTrimEnd" type="number" min="0" step="0.01" value="0" />
           </label>
-          <label>Pitch (semitone, -48..48)
-            <input id="editorPitch" type="range" min="-48" max="48" step="1" value="0" />
+
+          <div class="editor-knob-wrap">
+            <div class="editor-knob-label">Pitch</div>
+            <div id="editorPitchKnob" class="editor-knob" role="slider" aria-label="Pitch knob" tabindex="0">
+              <div class="editor-knob-ring"></div>
+              <div class="editor-knob-pointer"></div>
+            </div>
+            <div class="editor-readout" id="editorPitchValue">0 st</div>
+          </div>
+
+          <div class="editor-knob-wrap">
+            <div class="editor-knob-label">Tone</div>
+            <div id="editorToneKnob" class="editor-knob" role="slider" aria-label="Tone knob" tabindex="0">
+              <div class="editor-knob-ring"></div>
+              <div class="editor-knob-pointer"></div>
+            </div>
+            <div class="editor-readout" id="editorToneValue">0.0</div>
+          </div>
+
+          <label>Gain (dB)
+            <input id="editorGainDb" type="range" min="-24" max="24" step="0.5" value="0" />
           </label>
-          <div class="editor-readout" id="editorPitchValue">0 st</div>
-          <label>Tone (-24..24)
-            <input id="editorTone" type="range" min="-24" max="24" step="0.5" value="0" />
+          <label>Fade In (sec)
+            <input id="editorFadeIn" type="number" min="0" step="0.01" value="0" />
           </label>
-          <div class="editor-readout" id="editorToneValue">0.0</div>
+          <label>Fade Out (sec)
+            <input id="editorFadeOut" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label>Tempo Change (%)
+            <input id="editorTempoPercent" type="number" min="25" max="400" step="1" value="100" />
+          </label>
+          <label><input id="editorNormalize" type="checkbox" /> Normalize</label>
+          <label><input id="editorReverse" type="checkbox" /> Reverse</label>
+          <label><input id="editorLoop" type="checkbox" /> Loop preview</label>
+
           <label>Voice Character
             <select id="editorVoice">
               <option value="natural">Natural</option>
               <option value="warm">Warm</option>
               <option value="bright">Bright</option>
             </select>
+          </label>
+          <label>Key Detection
+            <input id="editorKeyDetected" type="text" value="Detect on preview" readonly />
+          </label>
+          <label>Key Shift (semi)
+            <input id="editorKeyShift" type="number" min="-12" max="12" step="1" value="0" />
           </label>
         </div>
 
