@@ -27,7 +27,25 @@ fn config_path() -> Result<PathBuf, String> {
     Ok(app_root()?.join("config.json"))
 }
 
+fn validate_project_name(name: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("invalid project name: empty".into());
+    }
+    if trimmed.len() > 80 {
+        return Err("invalid project name: too long".into());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+        return Err("invalid project name: illegal path characters".into());
+    }
+    if trimmed.chars().any(|c| c.is_control()) {
+        return Err("invalid project name: control chars not allowed".into());
+    }
+    Ok(())
+}
+
 fn project_dir(project: &str) -> Result<PathBuf, String> {
+    validate_project_name(project)?;
     let dir = app_root()?.join("projects").join(project);
     fs::create_dir_all(dir.join("renders")).map_err(|e| e.to_string())?;
     fs::create_dir_all(dir.join("recordings")).map_err(|e| e.to_string())?;
@@ -144,6 +162,7 @@ fn list_project_cards() -> Result<Vec<ProjectCard>, String> {
 
 #[tauri::command]
 fn create_project(name: String) -> Result<String, String> {
+    validate_project_name(&name)?;
     let dir = app_root()?.join("projects").join(&name);
     if dir.exists() {
         return Err("project already exists".into());
@@ -168,6 +187,8 @@ fn load_project(project: String) -> Result<String, String> {
 
 #[tauri::command]
 fn rename_project(project: String, new_name: String) -> Result<(), String> {
+    validate_project_name(&project)?;
+    validate_project_name(&new_name)?;
     let src = app_root()?.join("projects").join(project);
     let dst = app_root()?.join("projects").join(new_name);
     if dst.exists() {
@@ -178,6 +199,7 @@ fn rename_project(project: String, new_name: String) -> Result<(), String> {
 
 #[tauri::command]
 fn delete_project(project: String) -> Result<(), String> {
+    validate_project_name(&project)?;
     let dir = app_root()?.join("projects").join(project);
     if dir.exists() {
         fs::remove_dir_all(dir).map_err(|e| e.to_string())?;
@@ -187,6 +209,8 @@ fn delete_project(project: String) -> Result<(), String> {
 
 #[tauri::command]
 fn duplicate_project(source: String, target: String) -> Result<(), String> {
+    validate_project_name(&source)?;
+    validate_project_name(&target)?;
     let src = app_root()?.join("projects").join(source);
     let dst = app_root()?.join("projects").join(&target);
     if dst.exists() {
@@ -373,6 +397,7 @@ fn read_project_file_bytes(project: String, path: String) -> Result<Vec<u8>, Str
 
 #[tauri::command]
 fn touch_recent_project(project: String) -> Result<(), String> {
+    validate_project_name(&project)?;
     let path = config_path()?;
     let mut list = read_recent_projects()?;
     list.retain(|p| p != &project);

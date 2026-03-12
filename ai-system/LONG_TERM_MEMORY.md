@@ -64,3 +64,10 @@ Must be revalidated after structural module changes.
 - Constitutional impact assessment: no change to transport model authority, module ownership boundaries, canonical filesystem containment, or async guard invariants.
 - Compliance gate outcome: all required categories PASS.
 - System state after synchronization: STABLE.
+
+## 2026-03-12 Synchronization Note
+- Drift check executed against live modules for dashboard/theme/layout/security hardening: `beatforge/index.html`, `beatforge/src/style.css`, `beatforge/src/main.js`, `beatforge/src/ui.js`, and `beatforge/src-tauri/src/main.rs`.
+- Result: Drift detected in the modules above relative to the 2026-03-11 snapshot baseline, limited to dashboard UX expansion, app-wide theme controls, preset layout bootstrapping, frontend XSS-safe card rendering, and backend project-name validation hardening.
+- Constitutional impact assessment: transport state-machine authority, in-flight guard lifecycle, project-relative path containment, and async isolation guarantees remain preserved.
+- Compliance gate outcome: deterministic transport PASS, single-authority control PASS, in-flight guards PASS, filesystem containment PASS, async isolation PASS.
+- System state after synchronization: STABLE.

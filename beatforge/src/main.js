@@ -19,6 +19,12 @@ const addRecRowBtn = document.getElementById("addRecRowBtn");
 const addPresetRowBtn = document.getElementById("addPresetRowBtn");
 const backBtn = document.getElementById("backBtn");
 const newProjectBtn = document.getElementById("newProjectBtn");
+const dashboardThemeBtn = document.getElementById("dashboardThemeBtn");
+const themeBackBtn = document.getElementById("themeBackBtn");
+const themeControlsGrid = document.getElementById("themeControlsGrid");
+const themePresetLightBtn = document.getElementById("themePresetLightBtn");
+const themePresetDarkBtn = document.getElementById("themePresetDarkBtn");
+const themePresetNeonBtn = document.getElementById("themePresetNeonBtn");
 const projectTitle = document.getElementById("projectTitle");
 const fileMenuBtn = document.getElementById("fileMenuBtn");
 const optionMenuBtn = document.getElementById("optionMenuBtn");
@@ -138,6 +144,29 @@ let musicSeekCommitTimer = null;
 let smoothSeekEnabled = true;
 let musicNotesRunning = false;
 let musicNoteRafId = null;
+
+const APP_THEME_KEY = "beatforge_theme_v1";
+const THEME_FIELDS = [
+  { key: "appBg", label: "App background", cssVar: "--app-bg", default: "#0b1020" },
+  { key: "surface", label: "Panel/surface", cssVar: "--surface", default: "#161d30" },
+  { key: "primary", label: "Primary accent", cssVar: "--primary", default: "#5b8cff" },
+  { key: "secondary", label: "Secondary accent", cssVar: "--secondary", default: "#5df2c1" },
+  { key: "button", label: "Button background", cssVar: "--button-bg", default: "#233452" },
+  { key: "step", label: "Step off", cssVar: "--step-off", default: "#0f1524" },
+  { key: "stepOn", label: "Step on", cssVar: "--step-on", default: "#3fd4a4" },
+  { key: "danger", label: "Danger action", cssVar: "--danger", default: "#ff5c8a" }
+];
+const THEME_PRESETS = {
+  light: { appBg: "#edf2ff", surface: "#ffffff", primary: "#4f46e5", secondary: "#06b6d4", button: "#dbe7ff", step: "#e6ebf5", stepOn: "#2563eb", danger: "#e11d48" },
+  dark: { appBg: "#0b1020", surface: "#161d30", primary: "#5b8cff", secondary: "#5df2c1", button: "#233452", step: "#0f1524", stepOn: "#3fd4a4", danger: "#ff5c8a" },
+  neon: { appBg: "#090909", surface: "#161225", primary: "#ff00a8", secondary: "#00f6ff", button: "#271a3a", step: "#110d1b", stepOn: "#ffe600", danger: "#ff4d4d" }
+};
+
+const LAYOUT_SUGGESTIONS = [
+  { id: "trap_core", name: "Trap Core", description: "808-heavy foundation with tight hats and clap groove.", tracks: ["Kick", "Snare", "HiHat", "808", "OpenHat"] },
+  { id: "house_drive", name: "House Drive", description: "Steady four-on-the-floor layout for fast sketching.", tracks: ["Kick", "Clap", "ClosedHat", "OpenHat", "Perc"] },
+  { id: "boom_bap", name: "Boom Bap", description: "Classic hip-hop pocket with swing-ready skeleton.", tracks: ["Kick", "Snare", "Hat", "Perc"] }
+];
 let musicNoteLastSpawn = 0;
 let editorSelectedRecRow = null;
 let editorSourceBuffer = null;
@@ -174,6 +203,112 @@ function errorMessage(error) {
   if (typeof error === "string") return error;
   if (error.message) return error.message;
   try { return JSON.stringify(error); } catch { return String(error); }
+}
+
+function normalizeHexColor(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : fallback;
+}
+
+function luminance(hex) {
+  const n = hex.replace("#", "");
+  const r = parseInt(n.slice(0, 2), 16);
+  const g = parseInt(n.slice(2, 4), 16);
+  const b = parseInt(n.slice(4, 6), 16);
+  return ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255;
+}
+
+function bestTextColor(bgHex) {
+  return luminance(bgHex) > 0.58 ? "#0b1020" : "#f7f9ff";
+}
+
+function getDefaultTheme() {
+  return THEME_FIELDS.reduce((acc, field) => {
+    acc[field.key] = field.default;
+    return acc;
+  }, {});
+}
+
+function getThemeFromStorage() {
+  const fallback = getDefaultTheme();
+  try {
+    const parsed = JSON.parse(localStorage.getItem(APP_THEME_KEY) ?? "{}");
+    for (const field of THEME_FIELDS) {
+      fallback[field.key] = normalizeHexColor(parsed[field.key], field.default);
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function applyTheme(theme, { persist = true } = {}) {
+  const resolved = getDefaultTheme();
+  for (const field of THEME_FIELDS) {
+    resolved[field.key] = normalizeHexColor(theme[field.key], field.default);
+    document.documentElement.style.setProperty(field.cssVar, resolved[field.key]);
+  }
+  document.documentElement.style.setProperty("--app-text", bestTextColor(resolved.appBg));
+  document.documentElement.style.setProperty("--surface-text", bestTextColor(resolved.surface));
+  document.documentElement.style.setProperty("--button-text", bestTextColor(resolved.button));
+  document.documentElement.style.setProperty("--step-text", bestTextColor(resolved.step));
+  document.documentElement.style.setProperty("--step-on-text", bestTextColor(resolved.stepOn));
+  if (persist) localStorage.setItem(APP_THEME_KEY, JSON.stringify(resolved));
+  return resolved;
+}
+
+function renderThemeControls(theme) {
+  if (!themeControlsGrid) return;
+  themeControlsGrid.innerHTML = "";
+  THEME_FIELDS.forEach((field) => {
+    const wrap = document.createElement("label");
+    wrap.className = "theme-field";
+    const title = document.createElement("span");
+    title.textContent = field.label;
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = theme[field.key];
+    input.oninput = () => {
+      const next = { ...theme, [field.key]: input.value };
+      Object.assign(theme, applyTheme(next));
+    };
+    wrap.append(title, input);
+    themeControlsGrid.appendChild(wrap);
+  });
+}
+
+function findSampleByKeyword(samples, keyword) {
+  return samples.find((name) => name.toLowerCase().includes(keyword.toLowerCase())) ?? null;
+}
+
+async function applySuggestedLayout(layoutId) {
+  const layout = LAYOUT_SUGGESTIONS.find((item) => item.id === layoutId);
+  if (!layout) return;
+  const projectName = `layout_${layout.id}_${Date.now()}`;
+  await projectManager.createProject(projectName);
+  await openProject(projectName);
+  const samples = await projectManager.listDrumSamples();
+  const mapping = layout.tracks.map((track) => {
+    const normalized = track.toLowerCase();
+    if (normalized.includes("kick") || normalized.includes("808")) return findSampleByKeyword(samples, "kick") ?? samples[0] ?? null;
+    if (normalized.includes("snare") || normalized.includes("clap")) return findSampleByKeyword(samples, "snare") ?? findSampleByKeyword(samples, "clap") ?? null;
+    if (normalized.includes("openhat")) return findSampleByKeyword(samples, "open") ?? findSampleByKeyword(samples, "hat") ?? null;
+    if (normalized.includes("hat")) return findSampleByKeyword(samples, "hat") ?? null;
+    return findSampleByKeyword(samples, normalized) ?? samples[0] ?? null;
+  });
+
+  while (projectManager.state.sequencer.presetRows.length < mapping.length) {
+    if (!projectManager.state.addPresetRow()) break;
+  }
+  mapping.forEach((sound, index) => {
+    if (!projectManager.state.sequencer.presetRows[index]) return;
+    projectManager.state.sequencer.presetRows[index].sound = sound;
+    projectManager.state.sequencer.presetRows[index].name = layout.tracks[index] ?? `DRUM ${index + 1}`;
+  });
+  projectManager.markDirty();
+  updateHeader();
+  await renderSequencer();
 }
 
 async function runModalOperation(task) {
@@ -1122,6 +1257,11 @@ async function refreshDashboard() {
       await refreshDashboard();
     }))
   });
+  ui.renderLayoutSuggestions(LAYOUT_SUGGESTIONS, (layoutId) => {
+    safeAsync(async () => {
+      await runDashboardAction(async () => applySuggestedLayout(layoutId));
+    })();
+  });
 }
 
 async function maybeIncludeMusicBeforeSave() {
@@ -1470,6 +1610,21 @@ newProjectBtn.onclick = safeAsync(async () => {
   await runDashboardAction(async () => { await projectManager.createProject(name); await openProject(name); });
 });
 
+dashboardThemeBtn.onclick = () => ui.showThemeScreen();
+themeBackBtn.onclick = () => ui.showDashboard();
+themePresetLightBtn.onclick = () => {
+  const next = applyTheme(THEME_PRESETS.light);
+  renderThemeControls(next);
+};
+themePresetDarkBtn.onclick = () => {
+  const next = applyTheme(THEME_PRESETS.dark);
+  renderThemeControls(next);
+};
+themePresetNeonBtn.onclick = () => {
+  const next = applyTheme(THEME_PRESETS.neon);
+  renderThemeControls(next);
+};
+
 backBtn.onclick = safeAsync(async () => {
   const ok = await confirmSaveBeforeLeave({ promptHtml: "<p>Save before returning to Dashboard?</p>" });
   if (!ok) return;
@@ -1679,6 +1834,9 @@ document.addEventListener("visibilitychange", () => {
   }
   if (!musicAudio.paused) startMusicNotes();
 });
+
+const initialTheme = applyTheme(getThemeFromStorage(), { persist: false });
+renderThemeControls(initialTheme);
 
 syncTransportUi();
 syncTransportLocks();

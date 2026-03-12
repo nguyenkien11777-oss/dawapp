@@ -11,11 +11,42 @@
 
 <body>
   <section id="dashboard" class="studio-screen dashboard-screen">
+    <div class="dashboard-bg" aria-hidden="true">
+      <span class="bg-orb orb-a"></span>
+      <span class="bg-orb orb-b"></span>
+      <span class="bg-orb orb-c"></span>
+    </div>
     <header class="dash-head panel">
       <h1>BeatForge Projects</h1>
-      <button id="newProjectBtn">+ New Project</button>
+      <div class="dash-actions">
+        <button id="dashboardThemeBtn">🎨 App Theme</button>
+        <button id="newProjectBtn">+ New Project</button>
+      </div>
     </header>
+    <section class="dashboard-presets panel">
+      <h2>Sound Layout Suggestions</h2>
+      <p>Select a starter layout. BeatForge will auto-open a fresh project and prefill Preset Drum Rack.</p>
+      <div id="layoutSuggestions" class="layout-suggestions"></div>
+    </section>
     <div id="projectCards" class="cards"></div>
+  </section>
+
+  <section id="themeScreen" class="studio-screen" hidden>
+    <header class="topbar panel">
+      <h3 style="margin:0">Theme Studio</h3>
+      <button id="themeBackBtn">Back to Dashboard</button>
+    </header>
+    <main class="theme-layout panel">
+      <section class="theme-presets">
+        <h4>Quick Presets</h4>
+        <div class="theme-preset-actions">
+          <button id="themePresetLightBtn">Light</button>
+          <button id="themePresetDarkBtn">Dark</button>
+          <button id="themePresetNeonBtn">Neon</button>
+        </div>
+      </section>
+      <section class="theme-controls-grid" id="themeControlsGrid"></section>
+    </main>
   </section>
 
   <section id="sequencerScreen" class="studio-screen" hidden>
