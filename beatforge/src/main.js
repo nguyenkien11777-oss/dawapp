@@ -8,9 +8,11 @@ import { Dashboard } from "./dashboard.js";
 import { Recorder } from "./recorder.js";
 import { BPM_PRESETS, DEFAULT_BPM } from "./constants.js";
 
-const appWindow = getCurrentWindow();
+const isTauriRuntime = typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
+const appWindow = isTauriRuntime ? getCurrentWindow() : null;
 
 const welcomeScreen = document.getElementById("welcomeScreen");
+const welcomeContent = document.querySelector(".welcome-content");
 const bpmInput = document.getElementById("bpmInput");
 const bpmPresetSelect = document.getElementById("bpmPresetSelect");
 const bpmValue = document.getElementById("bpmValue");
@@ -153,6 +155,7 @@ let smoothSeekEnabled = true;
 let musicNotesRunning = false;
 let musicNoteRafId = null;
 let performanceModeEnabled = false;
+let welcomeEntered = false;
 
 const APP_THEME_KEY = "beatforge_theme_v1";
 const THEME_FIELDS = [
@@ -2053,6 +2056,7 @@ syncTransportLocks();
 syncSeekUi();
 
 async function registerCloseHandler() {
+  if (!appWindow) return;
   await appWindow.onCloseRequested(async (event) => {
     if (handlingClose) return;
     if (inFlightSave) {
@@ -2074,6 +2078,28 @@ async function registerCloseHandler() {
   });
 }
 
+const enterAppFromWelcome = safeAsync(async () => {
+  if (welcomeEntered) return;
+  welcomeEntered = true;
+  stopAllAudiblePlayback();
+  ui.showDashboard();
+  await refreshDashboard();
+  welcomeScreen.removeEventListener("click", enterAppFromWelcome);
+  welcomeContent?.removeEventListener("click", enterAppFromWelcome);
+  welcomeScreen.removeEventListener("keydown", onWelcomeKey);
+});
+
+const onWelcomeKey = (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    enterAppFromWelcome();
+  }
+};
+
+welcomeScreen.addEventListener("click", enterAppFromWelcome);
+welcomeContent?.addEventListener("click", enterAppFromWelcome);
+welcomeScreen.addEventListener("keydown", onWelcomeKey);
+
 (async () => {
   try {
     try {
@@ -2082,21 +2108,6 @@ async function registerCloseHandler() {
       console.warn("Close-handler registration failed; app will continue without close intercept:", err);
     }
     ui.showWelcome();
-    const enterApp = safeAsync(async () => {
-      stopAllAudiblePlayback();
-      ui.showDashboard();
-      await refreshDashboard();
-      welcomeScreen.removeEventListener("click", enterApp);
-      welcomeScreen.removeEventListener("keydown", onWelcomeKey);
-    });
-    const onWelcomeKey = (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        enterApp();
-      }
-    };
-    welcomeScreen.addEventListener("click", enterApp, { once: true });
-    welcomeScreen.addEventListener("keydown", onWelcomeKey);
   } catch (err) {
     console.error("Startup failure", err);
     await showModalError("App failed to initialize.");
