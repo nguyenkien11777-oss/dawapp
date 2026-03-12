@@ -5,6 +5,7 @@ export class UI {
     this.dashboard = document.getElementById("dashboard");
     this.sequencer = document.getElementById("sequencerScreen");
     this.audioEditor = document.getElementById("audioEditorScreen");
+    this.themeScreen = document.getElementById("themeScreen");
     this.projectCards = document.getElementById("projectCards");
     this.recRows = document.getElementById("recRows");
     this.presetRows = document.getElementById("presetRows");
@@ -12,22 +13,66 @@ export class UI {
     this.statusLog = document.getElementById("statusLog");
   }
 
-  showDashboard() { this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; }
-  showSequencer() { this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; }
-  showAudioEditor() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; }
+  showDashboard() { this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showSequencer() { this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showAudioEditor() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; this.themeScreen.hidden = true; }
+  showThemeScreen() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = false; }
 
   renderProjectCards(cards, handlers) {
     this.projectCards.innerHTML = "";
     cards.forEach((card) => {
       const el = document.createElement("article");
       el.className = "project-card";
-      el.innerHTML = `<h3>${card.name}</h3><p>BPM ${card.bpm}</p><p>Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}</p><p>Created ${card.created || "-"}</p><p>Modified ${card.modified || "-"}</p>
-      <div><button data-a='open'>Open</button><button data-a='rename'>Rename</button><button data-a='duplicate'>Duplicate</button><button data-a='delete'>Delete</button></div>`;
-      el.querySelector("[data-a='open']").onclick = () => handlers.open(card.name);
-      el.querySelector("[data-a='rename']").onclick = () => handlers.rename(card.name);
-      el.querySelector("[data-a='duplicate']").onclick = () => handlers.duplicate(card.name);
-      el.querySelector("[data-a='delete']").onclick = () => handlers.delete(card.name);
+
+      const title = document.createElement("h3");
+      title.textContent = card.name;
+      const bpm = document.createElement("p");
+      bpm.textContent = `BPM ${card.bpm}`;
+      const rows = document.createElement("p");
+      rows.textContent = `Rows ${card.row_count} · Master ${card.has_master ? "Yes" : "No"}`;
+      const created = document.createElement("p");
+      created.textContent = `Created ${card.created || "-"}`;
+      const modified = document.createElement("p");
+      modified.textContent = `Modified ${card.modified || "-"}`;
+      const actions = document.createElement("div");
+
+      const openBtn = document.createElement("button");
+      openBtn.textContent = "Open";
+      openBtn.onclick = () => handlers.open(card.name);
+      const renameBtn = document.createElement("button");
+      renameBtn.textContent = "Rename";
+      renameBtn.onclick = () => handlers.rename(card.name);
+      const duplicateBtn = document.createElement("button");
+      duplicateBtn.textContent = "Duplicate";
+      duplicateBtn.onclick = () => handlers.duplicate(card.name);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.textContent = "Delete";
+      deleteBtn.onclick = () => handlers.delete(card.name);
+
+      actions.append(openBtn, renameBtn, duplicateBtn, deleteBtn);
+      el.append(title, bpm, rows, created, modified, actions);
       this.projectCards.appendChild(el);
+    });
+  }
+
+  renderLayoutSuggestions(suggestions, onSelect) {
+    const host = document.getElementById("layoutSuggestions");
+    if (!host) return;
+    host.innerHTML = "";
+    suggestions.forEach((item) => {
+      const card = document.createElement("article");
+      card.className = "layout-card";
+      const title = document.createElement("h4");
+      title.textContent = item.name;
+      const description = document.createElement("p");
+      description.textContent = item.description;
+      const tracks = document.createElement("small");
+      tracks.textContent = item.tracks.join(" · ");
+      const button = document.createElement("button");
+      button.textContent = "Select Layout";
+      button.onclick = () => onSelect(item.id);
+      card.append(title, description, tracks, button);
+      host.appendChild(card);
     });
   }
 
