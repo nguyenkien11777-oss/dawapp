@@ -10,6 +10,7 @@ import { BPM_PRESETS, DEFAULT_BPM } from "./constants.js";
 
 const appWindow = getCurrentWindow();
 
+const welcomeScreen = document.getElementById("welcomeScreen");
 const bpmInput = document.getElementById("bpmInput");
 const bpmPresetSelect = document.getElementById("bpmPresetSelect");
 const bpmValue = document.getElementById("bpmValue");
@@ -28,9 +29,11 @@ const themePresetNeonBtn = document.getElementById("themePresetNeonBtn");
 const projectTitle = document.getElementById("projectTitle");
 const fileMenuBtn = document.getElementById("fileMenuBtn");
 const optionMenuBtn = document.getElementById("optionMenuBtn");
+const quickAssistMenuBtn = document.getElementById("quickAssistMenuBtn");
 const importMenuBtn = document.getElementById("importMenuBtn");
 const fileMenu = document.getElementById("fileMenu");
 const optionMenu = document.getElementById("optionMenu");
+const quickAssistMenu = document.getElementById("quickAssistMenu");
 const importMenu = document.getElementById("importMenu");
 const menuSave = document.getElementById("menuSave");
 const menuSaveAs = document.getElementById("menuSaveAs");
@@ -450,16 +453,19 @@ function setMusicSourceFromBlob(blob) {
 function openMenu(menu) {
   fileMenu.hidden = menu !== fileMenu;
   optionMenu.hidden = menu !== optionMenu;
+  quickAssistMenu.hidden = menu !== quickAssistMenu;
   importMenu.hidden = menu !== importMenu;
 }
 
-function closeMenus() { fileMenu.hidden = true; optionMenu.hidden = true; importMenu.hidden = true; }
+function closeMenus() { fileMenu.hidden = true; optionMenu.hidden = true; quickAssistMenu.hidden = true; importMenu.hidden = true; }
 
 document.addEventListener("click", (e) => {
   if (!fileMenuBtn.contains(e.target)
     && !fileMenu.contains(e.target)
     && !optionMenuBtn.contains(e.target)
     && !optionMenu.contains(e.target)
+    && !quickAssistMenuBtn.contains(e.target)
+    && !quickAssistMenu.contains(e.target)
     && !importMenuBtn.contains(e.target)
     && !importMenu.contains(e.target)) {
     closeMenus();
@@ -571,8 +577,10 @@ function setPerformanceMode(enabled) {
   if (performanceModeEnabled) {
     stopMusicNotes();
     smoothSeekEnabled = true;
+    stopAllAudiblePlayback();
   }
   musicSmoothSeekToggle.checked = smoothSeekEnabled;
+  performanceModeToggle.checked = performanceModeEnabled;
   ui.log(performanceModeEnabled ? "Performance mode enabled." : "Performance mode disabled.");
 }
 
@@ -1276,11 +1284,7 @@ async function openAudioEditorScreen() {
   editorQuantize.value = "0";
   editorDetectedBpm.value = "--";
   await recalcEditorProcessedBuffer();
-  if (editorProcessedBuffer) {
-    await audioEngine.ensureRunning();
-    const gain = row?.volume ?? 1;
-    audioEngine.playBuffer({ buffer: editorProcessedBuffer, gainValue: gain, when: audioEngine.context.currentTime });
-  }
+  stopAllAudiblePlayback();
   ui.showAudioEditor();
 }
 
@@ -1406,6 +1410,7 @@ async function openProject(name) {
   updateHeader();
   await loadMusicFromState();
   await renderSequencer();
+  stopAllAudiblePlayback();
   ui.showSequencer();
 }
 
@@ -1510,6 +1515,7 @@ recorder.on("record-stop", async ({ cellIndex, buffer }) => {
 
 fileMenuBtn.onclick = () => openMenu(fileMenu);
 optionMenuBtn.onclick = () => openMenu(optionMenu);
+quickAssistMenuBtn.onclick = () => openMenu(quickAssistMenu);
 importMenuBtn.onclick = () => openMenu(importMenu);
 
 menuSave.onclick = safeAsync(async () => { closeMenus(); await saveCurrentProject(); });
@@ -1808,8 +1814,8 @@ newProjectBtn.onclick = safeAsync(async () => {
   await runDashboardAction(async () => { await projectManager.createProject(name); await openProject(name); });
 });
 
-dashboardThemeBtn.onclick = () => ui.showThemeScreen();
-themeBackBtn.onclick = () => ui.showDashboard();
+dashboardThemeBtn.onclick = () => { stopAllAudiblePlayback(); ui.showThemeScreen(); };
+themeBackBtn.onclick = () => { stopAllAudiblePlayback(); ui.showDashboard(); };
 themePresetLightBtn.onclick = () => {
   const next = applyTheme(THEME_PRESETS.light);
   renderThemeControls(next);
@@ -2075,8 +2081,22 @@ async function registerCloseHandler() {
     } catch (err) {
       console.warn("Close-handler registration failed; app will continue without close intercept:", err);
     }
-  ui.showDashboard();
-  await refreshDashboard();
+    ui.showWelcome();
+    const enterApp = safeAsync(async () => {
+      stopAllAudiblePlayback();
+      ui.showDashboard();
+      await refreshDashboard();
+      welcomeScreen.removeEventListener("click", enterApp);
+      welcomeScreen.removeEventListener("keydown", onWelcomeKey);
+    });
+    const onWelcomeKey = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        enterApp();
+      }
+    };
+    welcomeScreen.addEventListener("click", enterApp, { once: true });
+    welcomeScreen.addEventListener("keydown", onWelcomeKey);
   } catch (err) {
     console.error("Startup failure", err);
     await showModalError("App failed to initialize.");

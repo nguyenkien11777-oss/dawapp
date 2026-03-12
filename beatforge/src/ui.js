@@ -2,6 +2,7 @@ import { STEPS } from "./constants.js";
 
 export class UI {
   constructor() {
+    this.welcome = document.getElementById("welcomeScreen");
     this.dashboard = document.getElementById("dashboard");
     this.sequencer = document.getElementById("sequencerScreen");
     this.audioEditor = document.getElementById("audioEditorScreen");
@@ -11,12 +12,14 @@ export class UI {
     this.presetRows = document.getElementById("presetRows");
     this.timer = document.getElementById("transportTimer");
     this.statusLog = document.getElementById("statusLog");
+    this.logs = [];
   }
 
-  showDashboard() { this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
-  showSequencer() { this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
-  showAudioEditor() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; this.themeScreen.hidden = true; }
-  showThemeScreen() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = false; }
+  showWelcome() { this.welcome.hidden = false; this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showDashboard() { this.welcome.hidden = true; this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showSequencer() { this.welcome.hidden = true; this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showAudioEditor() { this.welcome.hidden = true; this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; this.themeScreen.hidden = true; }
+  showThemeScreen() { this.welcome.hidden = true; this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = false; }
 
   renderProjectCards(cards, handlers) {
     this.projectCards.innerHTML = "";
@@ -131,7 +134,11 @@ export class UI {
           select.appendChild(option);
         });
         select.value = row.sound ?? "";
-        select.onchange = (e) => invokeCallback(opts.onSound, rowIndex, e.target.value);
+        select.classList.add("sample-select");
+        const optionCount = (opts.samples ?? []).length;
+        select.onfocus = () => { if (optionCount > 7) select.size = 7; };
+        select.onblur = () => { select.size = 1; };
+        select.onchange = (e) => { select.size = 1; invokeCallback(opts.onSound, rowIndex, e.target.value); };
         select.disabled = Boolean(opts.lockSoundChange);
       }
       container.appendChild(wrap);
@@ -153,6 +160,8 @@ export class UI {
 
   log(message) {
     const now = new Date().toLocaleTimeString();
-    this.statusLog.textContent = `[${now}] ${message}\n${this.statusLog.textContent}`;
+    this.logs.unshift(`[${now}] ${message}`);
+    if (this.logs.length > 7) this.logs = this.logs.slice(0, 7);
+    this.statusLog.textContent = this.logs.join("\n");
   }
 }

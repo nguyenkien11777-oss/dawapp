@@ -78,3 +78,10 @@ Must be revalidated after structural module changes.
 - Constitutional impact assessment: no change to architectural invariants, module boundaries, authority ownership, transport model, or filesystem guarantees.
 - Compliance gate outcome: deterministic transport PASS, single-authority control PASS, in-flight guards PASS, filesystem containment PASS, async isolation PASS.
 - System state after synchronization: STABLE.
+
+## 2026-03-12 Synchronization Note (v4 governance extension)
+- Drift check executed against live modules for v4 governance extension: `beatforge/index.html`, `beatforge/src/main.js`, `beatforge/src/style.css`, `beatforge/src/ui.js`, and `beatforge/ARCHITECTURE_V1_V2.md`.
+- Result: Drift detected in the modules above relative to same-day baseline, limited to welcome-first entry flow, dedicated V4 Assist menu separation, screen-transition audio kill behavior, log/preset selector UX constraints, and architecture-rule documentation extension.
+- Constitutional impact assessment: architectural rule-set expanded by appending v4 sections in ARCHITECTURE_DOC; no rollback to v2/v3.5 safety guarantees.
+- Compliance gate outcome: deterministic transport PASS, single-authority control PASS, in-flight guards PASS, filesystem containment PASS, async isolation PASS.
+- System state after synchronization: STABLE – Constitution Updated.

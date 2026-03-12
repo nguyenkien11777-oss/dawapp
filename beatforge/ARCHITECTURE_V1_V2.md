@@ -243,3 +243,50 @@ Mọi phiên bản sau v3.5 khi mở rộng Audio Editor/Import/Export phải ch
 - Không phá in-flight guard lifecycle.
 - Không phá filesystem containment và relative-path persistence.
 - Không tạo unhandled async rejection từ UI/editor callbacks.
+
+16. v4 Feature Execution Layer (Quick Assist + Welcome + UX Safety)
+
+v4 mở rộng trên v3.5, vẫn giữ toàn bộ safety kernel của v2.
+
+16.1 V4 Quick Assist Menu Separation Rule
+
+Các hành động V4 Quick Assist phải nằm ở menu riêng, tách khỏi Option menu để tránh trộn lẫn với Audio Tools và giảm thao tác nhầm.
+
+16.2 Quick Assist Immediate-Apply Rule
+
+Mọi gợi ý quick-assist khi user nhấn phải có thể auto-apply ngay trong phạm vi state hiện tại (template/mix/master/performance), không yêu cầu luồng phụ gây chậm workflow.
+
+16.3 Screen Transition Audio Kill Rule
+
+Khi chuyển screen (Welcome/Dashboard/Sequencer/Theme/Audio Editor), mọi nguồn phát âm thanh đang chạy phải dừng hoàn toàn trước khi hoàn tất chuyển screen.
+
+16.4 Preset Sample Selector Visibility Rule
+
+UI chọn sample cho Preset Drum Rack phải giới hạn danh sách hiển thị tối đa 7 mục mỗi lần xem; nếu nhiều hơn phải cuộn được nhưng ẩn thanh cuộn để giữ thẩm mỹ giao diện.
+
+16.5 Status Log Readability + Capacity Rule
+
+Status log phải luôn readable theo theme nền; chỉ giữ tối đa 7 thông báo gần nhất theo khung hiển thị, phần vượt ngưỡng cho phép cuộn và vẫn ẩn thanh cuộn.
+
+16.6 Audio Editor Visual Consistency Rule
+
+Màu nền/visual base của Pitch knob là chuẩn tham chiếu cho các control knob khác trong REC Audio Editor (Gain/EQ/Filter/FX) để giữ ngôn ngữ thiết kế thống nhất.
+
+16.7 Audio Editor Sidebar Anchoring Rule
+
+REC Row Selection panel trong Audio Editor phải kéo theo chiều cao màn hình editor và nhóm nút Reset/Save phải neo ở đáy panel để thao tác nhất quán.
+
+16.8 Welcome Screen Entry Rule
+
+Khi khởi động app, màn hình đầu tiên là Welcome screen riêng.
+Welcome screen phải có tính nhận diện chuyên nghiệp, hiển thị rõ phiên bản đang chạy và thông tin định hướng cơ bản.
+User nhấn/chạm bất kỳ vị trí hợp lệ để vào Dashboard.
+
+16.9 Forward Stability Contract for v4+
+
+Mọi phiên bản sau v4 khi mở rộng Quick Assist/Welcome/Arrangement/Mixing phải chứng minh:
+- Không phá transport state machine authority.
+- Không phá in-flight guard lifecycle.
+- Không phá filesystem containment và relative-path persistence.
+- Không tạo unhandled async rejection từ UI callbacks.
+- Không làm screen transition để sót nguồn âm đang phát.

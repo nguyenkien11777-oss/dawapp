@@ -10,7 +10,17 @@
 </head>
 
 <body>
-  <section id="dashboard" class="studio-screen dashboard-screen">
+  <section id="welcomeScreen" class="studio-screen welcome-screen">
+    <div class="welcome-glow"></div>
+    <div class="welcome-content panel" role="button" tabindex="0" aria-label="Enter BeatForge">
+      <div class="welcome-version">BeatForge v4.0</div>
+      <h1>Welcome to BeatForge</h1>
+      <p>Fast idea-to-beat workflow with V4 Quick Assist: template generation, mix assist, mastering profiles, and performance mode.</p>
+      <small>Tap or click anywhere to continue</small>
+    </div>
+  </section>
+
+  <section id="dashboard" class="studio-screen dashboard-screen" hidden>
     <div class="dashboard-bg" aria-hidden="true">
       <span class="bg-orb orb-a"></span>
       <span class="bg-orb orb-b"></span>
@@ -34,24 +44,6 @@
       <p>Select a starter layout. BeatForge will auto-open a fresh project and prefill Preset Drum Rack.</p>
       <div id="layoutSuggestions" class="layout-suggestions"></div>
     </section>
-  </section>
-
-  <section id="themeScreen" class="studio-screen" hidden>
-    <header class="topbar panel">
-      <h3 style="margin:0">Theme Studio</h3>
-      <button id="themeBackBtn">Back to Dashboard</button>
-    </header>
-    <main class="theme-layout panel">
-      <section class="theme-presets">
-        <h4>Quick Presets</h4>
-        <div class="theme-preset-actions">
-          <button id="themePresetLightBtn">Light</button>
-          <button id="themePresetDarkBtn">Dark</button>
-          <button id="themePresetNeonBtn">Neon</button>
-        </div>
-      </section>
-      <section class="theme-controls-grid" id="themeControlsGrid"></section>
-    </main>
   </section>
 
   <section id="themeScreen" class="studio-screen" hidden>
@@ -101,6 +93,16 @@
             <div class="dropdown-title">Music Player Settings</div>
             <label class="dropdown-label"><input id="musicSyncToggle" type="checkbox" /> Sync With Beat</label>
             <label class="dropdown-label"><input id="musicSmoothSeekToggle" type="checkbox" checked /> Smooth Seek (low-power)</label>
+          </div>
+        </div>
+        <div class="menu">
+          <button id="quickAssistMenuBtn" class="menu-btn">V4 Assist ▾</button>
+          <div id="quickAssistMenu" class="dropdown" hidden>
+            <button id="assistMixBtn">⚡ Auto Mix Assist</button>
+            <button id="assistMasterLoudBtn">🔊 Master: Loud</button>
+            <button id="assistMasterWarmBtn">🔥 Master: Warm</button>
+            <button id="assistMasterCleanBtn">💎 Master: Clean</button>
+            <label class="dropdown-label"><input id="performanceModeToggle" type="checkbox" /> Performance Mode</label>
           </div>
         </div>
         <div class="menu">
