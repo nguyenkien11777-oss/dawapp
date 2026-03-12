@@ -12,6 +12,8 @@
   --button-text: #f3f7ff;
   --step-text: #8f9bb6;
   --step-on-text: #0b1020;
+  --heading-text: #dbe8ff;
+  --bpm-text: #5df2c1;
 
   --bg: var(--app-bg);
   --panel: var(--surface);
@@ -116,7 +118,7 @@ button:disabled {
 .orb-c { width: 220px; height: 220px; background: var(--danger); top: 64%; left: 18%; animation-duration: 18s; }
 @keyframes floatOrb { 0%,100% { transform: translate(0,0);} 50% { transform: translate(24px,-30px);} }
 
-.dashboard-presets { position: relative; z-index: 1; padding: 14px; margin-bottom: 14px; }
+.dashboard-presets { position: relative; z-index: 1; padding: 14px; margin-top: 18px; }
 .layout-suggestions { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .layout-card { padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 82%, black); display: grid; gap: 8px; }
 
@@ -129,6 +131,15 @@ button:disabled {
   margin: 0;
   letter-spacing: 0.02em;
 }
+
+.dashboard-screen .dash-head h1,
+.dashboard-presets h2,
+.theme-layout h4,
+.editor-sidebar h4,
+.editor-section-title {
+  color: var(--heading-text);
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -144,6 +155,9 @@ button:disabled {
   margin-top: 0;
   padding: 10px;
   border-bottom: white 1px solid;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .project-card P {
   font-size: smaller;
@@ -248,7 +262,7 @@ button:disabled {
   font-size: 28px;
   min-width: 90px;
   text-align: right;
-  color: var(--accent3);
+  color: var(--bpm-text);
   text-shadow: 0 0 16px rgba(255, 209, 102, 0.26);
 }
 
@@ -264,6 +278,7 @@ button:disabled {
 .module-header h3 {
   margin: 4px 0 14px;
   letter-spacing: 0.02em;
+  color: var(--heading-text);
 }
 .section-title-row {
   display: flex;
@@ -274,7 +289,7 @@ button:disabled {
 }
 .section-title-row h4 {
   margin: 8px 0;
-  color: var(--accent2);
+  color: var(--heading-text);
 }
 .rows {
   display: flex;
@@ -452,6 +467,17 @@ button:disabled {
   color: rgba(255, 209, 102, 0.65);
   animation: noteFloat 1.9s ease-out forwards;
   text-shadow: 0 0 8px rgba(255, 209, 102, 0.22);
+}
+
+body.performance-mode .dashboard-bg,
+body.performance-mode .music-note-field,
+body.performance-mode .vinyl-disc.spinning {
+  animation: none !important;
+  display: none !important;
+}
+
+body.performance-mode * {
+  transition-duration: 0.05s !important;
 }
 @keyframes noteFloat {
   0% {
@@ -673,7 +699,7 @@ button:disabled {
 .editor-readout {
   display: flex;
   align-items: end;
-  color: var(--accent3);
+  color: var(--bpm-text);
   font-weight: 600;
   padding-bottom: 10px;
 }
@@ -732,13 +758,16 @@ button:disabled {
   mask: radial-gradient(farthest-side, transparent calc(100% - 12px), #000 calc(100% - 12px) calc(100% - 9px), transparent calc(100% - 9px));
 }
 .editor-knob-pointer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: 4px;
-  height: 22px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, #ffd166, #ff8a00);
-  transform-origin: center 30px;
-  transform: rotate(var(--knob-rotation)) translateY(-10px);
-  box-shadow: 0 0 8px rgba(255, 209, 102, 0.35);
+  height: 33px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff, color-mix(in srgb, var(--primary) 65%, #ffffff));
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotate(var(--knob-rotation));
 }
 
 .editor-section-title {
@@ -766,4 +795,24 @@ button:disabled {
 }
 .editor-actions-stack button {
   width: 100%;
+}
+
+
+.editor-label-knob {
+  display: grid;
+  gap: 8px;
+}
+.editor-hidden-input {
+  display: none;
+}
+.editor-generated-knob {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 84%, black);
+}
+.editor-generated-knob .editor-readout {
+  font-size: 12px;
 }

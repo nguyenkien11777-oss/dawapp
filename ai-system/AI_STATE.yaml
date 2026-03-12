@@ -1,14 +1,14 @@
 version: 1
-snapshot_date: 2026-03-11
+snapshot_date: 2026-03-12
 project: BeatForge
 constitutional_authority: ARCHITECTURE_DOC
-phase: v3_expansion_on_v2_safety
+phase: v4_execution_on_v2_safety
 phase_change_requires_constitution_review: true
 validation_required_on_major_change: true
 memory_requires_drift_check: true
 current_focus:
-  - v3 feature layer active while preserving v2 safety invariants
-  - validating UI/UX expansions do not violate transport/filesystem/async guarantees
+  - v4 feature execution active while preserving v2 safety invariants
+  - rapid suggestion actions (template/mix/master/performance) must remain transport/filesystem/async-safe
 active_module:
   primary: beatforge/src/main.js
   supporting:

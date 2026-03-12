@@ -41,6 +41,11 @@ const toolTrim = document.getElementById("toolTrim");
 const toolNormalize = document.getElementById("toolNormalize");
 const toolReverse = document.getElementById("toolReverse");
 const toolGain = document.getElementById("toolGain");
+const assistMixBtn = document.getElementById("assistMixBtn");
+const assistMasterLoudBtn = document.getElementById("assistMasterLoudBtn");
+const assistMasterWarmBtn = document.getElementById("assistMasterWarmBtn");
+const assistMasterCleanBtn = document.getElementById("assistMasterCleanBtn");
+const performanceModeToggle = document.getElementById("performanceModeToggle");
 const musicSyncToggle = document.getElementById("musicSyncToggle");
 const musicSmoothSeekToggle = document.getElementById("musicSmoothSeekToggle");
 const musicImportBtn = document.getElementById("musicImportBtn");
@@ -144,6 +149,7 @@ let musicSeekCommitTimer = null;
 let smoothSeekEnabled = true;
 let musicNotesRunning = false;
 let musicNoteRafId = null;
+let performanceModeEnabled = false;
 
 const APP_THEME_KEY = "beatforge_theme_v1";
 const THEME_FIELDS = [
@@ -163,9 +169,9 @@ const THEME_PRESETS = {
 };
 
 const LAYOUT_SUGGESTIONS = [
-  { id: "trap_core", name: "Trap Core", description: "808-heavy foundation with tight hats and clap groove.", tracks: ["Kick", "Snare", "HiHat", "808", "OpenHat"] },
-  { id: "house_drive", name: "House Drive", description: "Steady four-on-the-floor layout for fast sketching.", tracks: ["Kick", "Clap", "ClosedHat", "OpenHat", "Perc"] },
-  { id: "boom_bap", name: "Boom Bap", description: "Classic hip-hop pocket with swing-ready skeleton.", tracks: ["Kick", "Snare", "Hat", "Perc"] }
+  { id: "trap_core", mood: "trap", name: "Trap Core", description: "808-heavy foundation with tight hats and clap groove.", tracks: ["Kick", "Snare", "HiHat", "808", "OpenHat"] },
+  { id: "lofi_chill", mood: "lofi", name: "Lo-fi Chill", description: "Soft drums with relaxed timing and minimalist movement.", tracks: ["Kick", "Snare", "Hat", "Perc"] },
+  { id: "edm_drive", mood: "edm", name: "EDM Drive", description: "Four-on-the-floor with bright hats and forward momentum.", tracks: ["Kick", "Clap", "ClosedHat", "OpenHat", "Perc"] }
 ];
 let musicNoteLastSpawn = 0;
 let editorSelectedRecRow = null;
@@ -223,6 +229,26 @@ function bestTextColor(bgHex) {
   return luminance(bgHex) > 0.58 ? "#0b1020" : "#f7f9ff";
 }
 
+function contrastRatio(hexA, hexB) {
+  const l1 = luminance(hexA);
+  const l2 = luminance(hexB);
+  const [maxL, minL] = l1 > l2 ? [l1, l2] : [l2, l1];
+  return (maxL + 0.05) / (minL + 0.05);
+}
+
+function pickReadableAccent(backgroundHex, candidates) {
+  let best = candidates[0];
+  let bestScore = 0;
+  candidates.forEach((color) => {
+    const score = contrastRatio(backgroundHex, color);
+    if (score > bestScore) {
+      best = color;
+      bestScore = score;
+    }
+  });
+  return best;
+}
+
 function getDefaultTheme() {
   return THEME_FIELDS.reduce((acc, field) => {
     acc[field.key] = field.default;
@@ -250,10 +276,15 @@ function applyTheme(theme, { persist = true } = {}) {
     document.documentElement.style.setProperty(field.cssVar, resolved[field.key]);
   }
   document.documentElement.style.setProperty("--app-text", bestTextColor(resolved.appBg));
-  document.documentElement.style.setProperty("--surface-text", bestTextColor(resolved.surface));
+  const surfaceText = bestTextColor(resolved.surface);
+  document.documentElement.style.setProperty("--surface-text", surfaceText);
   document.documentElement.style.setProperty("--button-text", bestTextColor(resolved.button));
   document.documentElement.style.setProperty("--step-text", bestTextColor(resolved.step));
   document.documentElement.style.setProperty("--step-on-text", bestTextColor(resolved.stepOn));
+  const heading = pickReadableAccent(resolved.surface, [resolved.primary, resolved.secondary, resolved.danger, surfaceText]);
+  const bpm = pickReadableAccent(resolved.surface, [resolved.secondary, resolved.primary, resolved.danger, bestTextColor(resolved.appBg)]);
+  document.documentElement.style.setProperty("--heading-text", heading);
+  document.documentElement.style.setProperty("--bpm-text", bpm);
   if (persist) localStorage.setItem(APP_THEME_KEY, JSON.stringify(resolved));
   return resolved;
 }
@@ -282,10 +313,78 @@ function findSampleByKeyword(samples, keyword) {
   return samples.find((name) => name.toLowerCase().includes(keyword.toLowerCase())) ?? null;
 }
 
+function rowPatternFromMood({ mood, track, variant = 0 }) {
+  const base = Array.from({ length: 16 }, () => false);
+  const normalizedTrack = track.toLowerCase();
+  const mark = (positions = []) => positions.forEach((p) => { if (p >= 0 && p < 16) base[p] = true; });
+
+  if (mood === "trap") {
+    if (normalizedTrack.includes("kick") || normalizedTrack.includes("808")) mark([0, 7 + variant, 10, 14]);
+    else if (normalizedTrack.includes("snare") || normalizedTrack.includes("clap")) mark([4, 12]);
+    else if (normalizedTrack.includes("hat")) mark([2, 4, 6, 8, 10, 12, 14, 15]);
+    else mark([0, 8]);
+    return base;
+  }
+
+  if (mood === "lofi") {
+    if (normalizedTrack.includes("kick")) mark([0, 9 + (variant % 2)]);
+    else if (normalizedTrack.includes("snare") || normalizedTrack.includes("clap")) mark([5, 13]);
+    else if (normalizedTrack.includes("hat")) mark([3, 7, 11, 15]);
+    else mark([2, 10]);
+    return base;
+  }
+
+  if (mood === "edm") {
+    if (normalizedTrack.includes("kick")) mark([0, 4, 8, 12]);
+    else if (normalizedTrack.includes("snare") || normalizedTrack.includes("clap")) mark([4, 12]);
+    else if (normalizedTrack.includes("hat")) mark([2, 6, 10, 14]);
+    else mark([7, 15]);
+    return base;
+  }
+
+  mark([0, 8]);
+  return base;
+}
+
+function applyMasterProfile(profile) {
+  const state = projectManager.state.sequencer;
+  const allRows = [...state.userRows, ...state.presetRows];
+  const factor = profile === "loud" ? 1.08 : profile === "warm" ? 0.96 : 0.9;
+  allRows.forEach((row) => {
+    row.volume = Math.max(0.05, Math.min(1, Number(row.volume || 1) * factor));
+  });
+  projectManager.markDirty();
+  updateHeader();
+  renderSequencer();
+  ui.log(`Applied master profile: ${profile.toUpperCase()}.`);
+}
+
+function runAutoMixAssist() {
+  const state = projectManager.state.sequencer;
+  const allRows = [...state.userRows, ...state.presetRows];
+  let activeCount = 0;
+  allRows.forEach((row) => {
+    const density = (row.steps ?? []).filter(Boolean).length;
+    if (!density || row.mute) return;
+    activeCount += 1;
+    const target = Math.min(0.9, Math.max(0.35, 1 / Math.sqrt(Math.max(1, density / 2))));
+    row.volume = Number((row.volume * 0.65 + target * 0.35).toFixed(3));
+  });
+  if (!activeCount) {
+    ui.log("Auto Mix Assist: no active steps found.");
+    return;
+  }
+  projectManager.markDirty();
+  updateHeader();
+  renderSequencer();
+  ui.log(`Auto Mix Assist applied to ${activeCount} active rows.`);
+}
+
 async function applySuggestedLayout(layoutId) {
   const layout = LAYOUT_SUGGESTIONS.find((item) => item.id === layoutId);
   if (!layout) return;
-  const projectName = `layout_${layout.id}_${Date.now()}`;
+  const variant = Math.floor(Math.random() * 3);
+  const projectName = `${layout.mood}_v4_${Date.now()}`;
   await projectManager.createProject(projectName);
   await openProject(projectName);
   const samples = await projectManager.listDrumSamples();
@@ -305,10 +404,15 @@ async function applySuggestedLayout(layoutId) {
     if (!projectManager.state.sequencer.presetRows[index]) return;
     projectManager.state.sequencer.presetRows[index].sound = sound;
     projectManager.state.sequencer.presetRows[index].name = layout.tracks[index] ?? `DRUM ${index + 1}`;
+    projectManager.state.sequencer.presetRows[index].steps = rowPatternFromMood({ mood: layout.mood, track: layout.tracks[index] ?? "", variant });
+    projectManager.state.sequencer.presetRows[index].volume = layout.mood === "lofi" ? 0.62 : layout.mood === "edm" ? 0.8 : 0.72;
   });
+
+  projectManager.state.setTempo(layout.mood === "trap" ? 140 : layout.mood === "lofi" ? 95 : 128);
   projectManager.markDirty();
   updateHeader();
   await renderSequencer();
+  ui.log(`V4 template generated: ${layout.name} (variant ${variant + 1}).`);
 }
 
 async function runModalOperation(task) {
@@ -432,7 +536,7 @@ function syncSeekUi() {
 }
 
 function spawnMusicNote() {
-  if (!musicNoteField) return;
+  if (!musicNoteField || performanceModeEnabled) return;
   const note = document.createElement("span");
   note.className = "music-note";
   note.textContent = Math.random() > 0.5 ? "♪" : "♫";
@@ -443,7 +547,7 @@ function spawnMusicNote() {
 }
 
 function startMusicNotes() {
-  if (musicNotesRunning) return;
+  if (musicNotesRunning || performanceModeEnabled) return;
   musicNotesRunning = true;
   musicNoteLastSpawn = 0;
   const loop = (now) => {
@@ -459,6 +563,17 @@ function startMusicNotes() {
     musicNoteRafId = requestAnimationFrame(loop);
   };
   musicNoteRafId = requestAnimationFrame(loop);
+}
+
+function setPerformanceMode(enabled) {
+  performanceModeEnabled = Boolean(enabled);
+  document.body.classList.toggle("performance-mode", performanceModeEnabled);
+  if (performanceModeEnabled) {
+    stopMusicNotes();
+    smoothSeekEnabled = true;
+  }
+  musicSmoothSeekToggle.checked = smoothSeekEnabled;
+  ui.log(performanceModeEnabled ? "Performance mode enabled." : "Performance mode disabled.");
 }
 
 function stopMusicNotes() {
@@ -912,7 +1027,7 @@ function scheduleEditorStepPreview() {
   }, 140);
 }
 
-function setupEditorKnob({ knobEl, min, max, step, getValue, setValue, onStepCross }) {
+function setupEditorKnob({ knobEl, min, max, step, getValue, setValue, onStepCross, resetValue = 0 }) {
   let dragging = false;
   let lastY = 0;
 
@@ -953,9 +1068,74 @@ function setupEditorKnob({ knobEl, min, max, step, getValue, setValue, onStepCro
 
   knobEl.addEventListener("pointerup", stopDrag);
   knobEl.addEventListener("pointercancel", stopDrag);
-  knobEl.addEventListener("dblclick", () => applyValue(0, true));
+  knobEl.addEventListener("dblclick", () => applyValue(resetValue, true));
 
   applyValue(getValue(), false);
+}
+
+
+function setupLinkedEditorKnob({ inputEl, min, max, step, format = (v) => String(v), resetValue = null }) {
+  if (!inputEl) return;
+  const label = inputEl.closest("label");
+  if (!label || label.dataset.knobified === "true") return;
+  label.dataset.knobified = "true";
+  label.classList.add("editor-label-knob");
+  inputEl.classList.add("editor-hidden-input");
+
+  const knobWrap = document.createElement("div");
+  knobWrap.className = "editor-generated-knob";
+  const knob = document.createElement("div");
+  knob.className = "editor-knob";
+  knob.setAttribute("role", "slider");
+  knob.setAttribute("tabindex", "0");
+  const ring = document.createElement("div");
+  ring.className = "editor-knob-ring";
+  const pointer = document.createElement("div");
+  pointer.className = "editor-knob-pointer";
+  knob.append(ring, pointer);
+  const readout = document.createElement("div");
+  readout.className = "editor-readout";
+  knobWrap.append(knob, readout);
+  label.appendChild(knobWrap);
+
+  setupEditorKnob({
+    knobEl: knob,
+    min,
+    max,
+    step,
+    getValue: () => Number(inputEl.value || 0),
+    setValue: (value) => {
+      inputEl.value = String(value);
+      readout.textContent = format(value);
+      editorLiveUpdate();
+    },
+    onStepCross: async () => {
+      await recalcEditorProcessedBuffer();
+      scheduleEditorStepPreview();
+    },
+    resetValue: resetValue ?? Number(inputEl.value || 0),
+  });
+}
+
+function initEditorAdvancedKnobs() {
+  const configs = [
+    { el: editorGainDb, min: -24, max: 24, step: 0.5, format: (v) => `${v.toFixed(1)} dB`, resetValue: 0 },
+    { el: editorEqBass, min: -18, max: 18, step: 0.5, format: (v) => `${v.toFixed(1)} dB`, resetValue: 0 },
+    { el: editorEqMid, min: -18, max: 18, step: 0.5, format: (v) => `${v.toFixed(1)} dB`, resetValue: 0 },
+    { el: editorEqTreble, min: -18, max: 18, step: 0.5, format: (v) => `${v.toFixed(1)} dB`, resetValue: 0 },
+    { el: editorLowPass, min: 40, max: 20000, step: 10, format: (v) => `${Math.round(v)} Hz`, resetValue: 20000 },
+    { el: editorHighPass, min: 0, max: 8000, step: 10, format: (v) => `${Math.round(v)} Hz`, resetValue: 0 },
+    { el: editorBandPass, min: 0, max: 12000, step: 10, format: (v) => `${Math.round(v)} Hz`, resetValue: 0 },
+    { el: editorReverbMix, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorDelayMix, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorChorusMix, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorFlangerMix, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorPhaserMix, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorDistortion, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorSaturation, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+    { el: editorGlitch, min: 0, max: 100, step: 1, format: (v) => `${Math.round(v)} %`, resetValue: 0 },
+  ];
+  configs.forEach(({ el, min, max, step, format, resetValue }) => setupLinkedEditorKnob({ inputEl: el, min, max, step, format, resetValue }));
 }
 
 async function recalcEditorProcessedBuffer() {
@@ -1440,6 +1620,9 @@ setupEditorKnob({
   setValue: (value) => { editorToneValueNum = value; editorToneValue.textContent = value.toFixed(1); editorLiveUpdate(); },
   onStepCross: async () => { await recalcEditorProcessedBuffer(); scheduleEditorStepPreview(); }
 });
+
+initEditorAdvancedKnobs();
+
 editorTrimStart.oninput = editorLiveUpdateWithPreview;
 editorTrimEnd.oninput = editorLiveUpdateWithPreview;
 editorGainDb.oninput = editorLiveUpdateWithPreview;
@@ -1602,6 +1785,21 @@ toolGain.onclick = safeAsync(async () => {
     await applyAudioTool("gain", { gainDb });
   });
 });
+
+assistMixBtn.onclick = () => {
+  closeMenus();
+  if (isTransportActive()) {
+    ui.log("Auto Mix Assist is available when transport is idle.");
+    return;
+  }
+  runAutoMixAssist();
+};
+assistMasterLoudBtn.onclick = () => { closeMenus(); applyMasterProfile("loud"); };
+assistMasterWarmBtn.onclick = () => { closeMenus(); applyMasterProfile("warm"); };
+assistMasterCleanBtn.onclick = () => { closeMenus(); applyMasterProfile("clean"); };
+performanceModeToggle.onchange = () => {
+  setPerformanceMode(performanceModeToggle.checked);
+};
 
 newProjectBtn.onclick = safeAsync(async () => {
   if (inFlightDashboardAction) return;
@@ -1781,6 +1979,10 @@ musicSyncToggle.onchange = () => {
   projectManager.markDirty();
 };
 musicSmoothSeekToggle.onchange = () => {
+  if (performanceModeEnabled && !musicSmoothSeekToggle.checked) {
+    musicSmoothSeekToggle.checked = true;
+    return;
+  }
   smoothSeekEnabled = musicSmoothSeekToggle.checked;
 };
 musicVolume.oninput = () => {
@@ -1837,6 +2039,8 @@ document.addEventListener("visibilitychange", () => {
 
 const initialTheme = applyTheme(getThemeFromStorage(), { persist: false });
 renderThemeControls(initialTheme);
+performanceModeToggle.checked = false;
+setPerformanceMode(false);
 
 syncTransportUi();
 syncTransportLocks();

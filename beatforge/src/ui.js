@@ -26,6 +26,7 @@ export class UI {
 
       const title = document.createElement("h3");
       title.textContent = card.name;
+      title.title = card.name;
       const bpm = document.createElement("p");
       bpm.textContent = `BPM ${card.bpm}`;
       const rows = document.createElement("p");
@@ -69,7 +70,7 @@ export class UI {
       const tracks = document.createElement("small");
       tracks.textContent = item.tracks.join(" · ");
       const button = document.createElement("button");
-      button.textContent = "Select Layout";
+      button.textContent = "Generate & Auto-Apply";
       button.onclick = () => onSelect(item.id);
       card.append(title, description, tracks, button);
       host.appendChild(card);
