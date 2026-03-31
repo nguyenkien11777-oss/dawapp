@@ -311,6 +311,26 @@ fn write_project_music_file(project: String, file_name: String, bytes: Vec<u8>) 
 }
 
 #[tauri::command]
+fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<String, String> {
+    let out = PathBuf::from(path);
+    if !out.is_absolute() {
+        return Err("output path must be absolute".into());
+    }
+    let ext = out
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    if !ext.eq_ignore_ascii_case("mp3") {
+        return Err("output file must have .mp3 extension".into());
+    }
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    safe_write(&out, &bytes)?;
+    Ok(out.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn import_drum_wav(file_name: String, bytes: Vec<u8>) -> Result<String, String> {
     let sanitized = Path::new(&file_name)
         .file_name()
@@ -428,6 +448,7 @@ fn main() {
             ffmpeg_preflight,
             pick_save_mp3_path,
             write_project_music_file,
+            write_binary_file,
             import_drum_wav,
             list_drum_samples,
             read_file_bytes,

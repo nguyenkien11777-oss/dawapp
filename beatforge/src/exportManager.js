@@ -69,6 +69,50 @@ export function encodeWav(audioBuffer) {
   return wav;
 }
 
+function parseWavPcm16(wavBytes) {
+  const bytes = wavBytes instanceof Uint8Array ? wavBytes : new Uint8Array(wavBytes);
+  if (bytes.length < 44) throw new Error("Invalid WAV: too small");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const readString = (offset, length) => {
+    let out = "";
+    for (let i = 0; i < length; i += 1) out += String.fromCharCode(view.getUint8(offset + i));
+    return out;
+  };
+  if (readString(0, 4) !== "RIFF" || readString(8, 4) !== "WAVE") {
+    throw new Error("Invalid WAV: missing RIFF/WAVE");
+  }
+
+  let offset = 12;
+  let channels = 2;
+  let sampleRate = 44100;
+  let bitsPerSample = 16;
+  let dataOffset = -1;
+  let dataSize = 0;
+
+  while (offset + 8 <= bytes.length) {
+    const chunkId = readString(offset, 4);
+    const chunkSize = view.getUint32(offset + 4, true);
+    const chunkDataOffset = offset + 8;
+    if (chunkId === "fmt ") {
+      channels = view.getUint16(chunkDataOffset + 2, true);
+      sampleRate = view.getUint32(chunkDataOffset + 4, true);
+      bitsPerSample = view.getUint16(chunkDataOffset + 14, true);
+    } else if (chunkId === "data") {
+      dataOffset = chunkDataOffset;
+      dataSize = chunkSize;
+      break;
+    }
+    offset = chunkDataOffset + chunkSize + (chunkSize % 2);
+  }
+
+  if (dataOffset < 0) throw new Error("Invalid WAV: data chunk missing");
+  if (bitsPerSample !== 16) throw new Error(`Unsupported WAV bit depth: ${bitsPerSample}`);
+  const sampleCount = Math.floor(dataSize / 2);
+  const interleaved = new Int16Array(sampleCount);
+  for (let i = 0; i < sampleCount; i += 1) interleaved[i] = view.getInt16(dataOffset + (i * 2), true);
+  return { channels, sampleRate, interleaved };
+}
+
 export class ExportManager {
   constructor(audioEngine, projectManager, sampleBuffers) {
     this.audioEngine = audioEngine;
@@ -118,5 +162,50 @@ export class ExportManager {
   async exportMp3() {
     const outPath = await tauriInvoke("export_mp3_from_master", { project: this.projectManager.currentProject });
     return outPath;
+  }
+
+  encodeMp3WithLameJs(wavBytes) {
+    const lamejs = window?.lamejs;
+    if (!lamejs?.Mp3Encoder) {
+      throw new Error("LAMEJS_NOT_AVAILABLE: lamejs runtime is not loaded");
+    }
+
+    const { channels, sampleRate, interleaved } = parseWavPcm16(wavBytes);
+    const mp3Encoder = new lamejs.Mp3Encoder(Math.min(channels, 2), sampleRate, 192);
+    const CHUNK = 1152;
+    const chunks = [];
+
+    if (channels === 1) {
+      for (let i = 0; i < interleaved.length; i += CHUNK) {
+        const left = interleaved.subarray(i, i + CHUNK);
+        const mp3buf = mp3Encoder.encodeBuffer(left);
+        if (mp3buf?.length) chunks.push(Uint8Array.from(mp3buf));
+      }
+    } else {
+      const frameCount = Math.floor(interleaved.length / channels);
+      for (let i = 0; i < frameCount; i += CHUNK) {
+        const batch = Math.min(CHUNK, frameCount - i);
+        const left = new Int16Array(batch);
+        const right = new Int16Array(batch);
+        for (let j = 0; j < batch; j += 1) {
+          left[j] = interleaved[(i + j) * channels];
+          right[j] = interleaved[(i + j) * channels + 1];
+        }
+        const mp3buf = mp3Encoder.encodeBuffer(left, right);
+        if (mp3buf?.length) chunks.push(Uint8Array.from(mp3buf));
+      }
+    }
+
+    const flush = mp3Encoder.flush();
+    if (flush?.length) chunks.push(Uint8Array.from(flush));
+
+    const totalSize = chunks.reduce((sum, c) => sum + c.length, 0);
+    const output = new Uint8Array(totalSize);
+    let cursor = 0;
+    for (const chunk of chunks) {
+      output.set(chunk, cursor);
+      cursor += chunk.length;
+    }
+    return output;
   }
 }
