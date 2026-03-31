@@ -115,7 +115,25 @@ button:disabled {
 }
 .welcome-content h1 { margin: 8px 0 14px; font-size: clamp(32px, 5vw, 58px); }
 .welcome-content p { margin: 0 auto 14px; max-width: 680px; color: var(--surface-text); }
-.welcome-version { position: absolute; top: 12px; right: 12px; font-size: 12px; color: var(--secondary); }
+.welcome-version { position: absolute; top: 14px; left: 14px; font-size: 12px; color: var(--secondary); }
+.welcome-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--surface-text) 24%, transparent);
+  background: color-mix(in srgb, var(--surface) 80%, black);
+  color: var(--surface-text);
+  font-size: 20px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+  cursor: pointer;
+}
+.welcome-close-btn:hover { transform: scale(1.05); }
 .panel {
   background: linear-gradient(
     180deg,

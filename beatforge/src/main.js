@@ -13,6 +13,7 @@ const appWindow = isTauriRuntime ? getCurrentWindow() : null;
 
 const welcomeScreen = document.getElementById("welcomeScreen");
 const welcomeContent = document.querySelector(".welcome-content");
+const welcomeCloseBtn = document.getElementById("welcomeCloseBtn");
 const bpmInput = document.getElementById("bpmInput");
 const bpmPresetSelect = document.getElementById("bpmPresetSelect");
 const bpmValue = document.getElementById("bpmValue");
@@ -1905,7 +1906,6 @@ recordMasterBtn.onclick = safeAsync(async () => {
   clearMasterTimer();
   ui.setTimer(0);
   try {
-    await projectManager.ffmpegPreflight();
     const wav = await exportManager.renderMasterWav();
     await projectManager.writeMasterWav(wav);
     projectManager.state.render.hasMasterWav = true;
@@ -1913,7 +1913,19 @@ recordMasterBtn.onclick = safeAsync(async () => {
     updateHeader();
     const selected = await projectManager.chooseMp3SavePath(`${projectManager.currentProject}-pipi.mp3`);
     if (selected) {
-      const out = await projectManager.exportMasterMp3ToPath(selected);
+      let out;
+      try {
+        out = await projectManager.exportMasterMp3ToPath(selected);
+      } catch (ffmpegError) {
+        const ffmpegMessage = errorMessage(ffmpegError);
+        const canFallbackWithLame = ffmpegMessage.includes("FFMPEG_NOT_FOUND")
+          || ffmpegMessage.includes("FFMPEG_EXIT_STATUS")
+          || ffmpegMessage.includes("FFMPEG_EXEC_ERROR");
+        if (!canFallbackWithLame) throw ffmpegError;
+        const mp3Bytes = exportManager.encodeMp3WithLameJs(wav);
+        out = await projectManager.writeBinaryFile(selected, mp3Bytes);
+        ui.log(`FFmpeg failed (${ffmpegMessage}). Exported MP3 using lamejs fallback.`);
+      }
       const exists = await projectManager.pathExists(out);
       ui.log(exists ? `Exported MP3: ${out}` : `Export completed but file not found at expected path: ${out}`);
       if (!exists) {
@@ -1925,8 +1937,11 @@ recordMasterBtn.onclick = safeAsync(async () => {
   } catch (error) {
     const message = errorMessage(error);
     ui.log(`Master record finalize failed: ${message}`);
-    if (message.includes("FFMPEG_NOT_FOUND")) {
-      await runModalOperation(() => showModalError("Không thể xuất MP3 vì máy chưa có encoder. master.wav đã được giữ trong project; hãy cài ffmpeg rồi thử lại MP3."));
+    if (message.includes("FFMPEG_NOT_FOUND")
+      || message.includes("FFMPEG_EXIT_STATUS")
+      || message.includes("FFMPEG_EXEC_ERROR")
+      || message.includes("LAMEJS_NOT_AVAILABLE")) {
+      await runModalOperation(() => showModalError("Không thể xuất MP3 vì chưa có encoder khả dụng (ffmpeg/lamejs). master.wav đã được giữ trong project."));
     }
   } finally {
     inFlightExportMp3 = false;
@@ -2099,6 +2114,10 @@ const onWelcomeKey = (event) => {
 welcomeScreen.addEventListener("click", enterAppFromWelcome);
 welcomeContent?.addEventListener("click", enterAppFromWelcome);
 welcomeScreen.addEventListener("keydown", onWelcomeKey);
+welcomeCloseBtn?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  enterAppFromWelcome();
+});
 
 (async () => {
   try {

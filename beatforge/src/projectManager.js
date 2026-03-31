@@ -101,6 +101,10 @@ export class ProjectManager {
     return tauriInvoke("write_project_music_file", { project: this.currentProject, fileName, bytes: Array.from(bytes) });
   }
 
+  async writeBinaryFile(path, bytes) {
+    return tauriInvoke("write_binary_file", { path, bytes: Array.from(bytes) });
+  }
+
   async importDrumWav(fileName, bytes) {
     return tauriInvoke("import_drum_wav", { fileName, bytes: Array.from(bytes) });
   }
