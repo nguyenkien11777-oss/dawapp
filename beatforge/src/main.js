@@ -11,9 +11,6 @@ import { BPM_PRESETS, DEFAULT_BPM } from "./constants.js";
 const isTauriRuntime = typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
 const appWindow = isTauriRuntime ? getCurrentWindow() : null;
 
-const welcomeScreen = document.getElementById("welcomeScreen");
-const welcomeContent = document.querySelector(".welcome-content");
-const welcomeCloseBtn = document.getElementById("welcomeCloseBtn");
 const bpmInput = document.getElementById("bpmInput");
 const bpmPresetSelect = document.getElementById("bpmPresetSelect");
 const bpmValue = document.getElementById("bpmValue");
@@ -156,7 +153,6 @@ let smoothSeekEnabled = true;
 let musicNotesRunning = false;
 let musicNoteRafId = null;
 let performanceModeEnabled = false;
-let welcomeEntered = false;
 
 const APP_THEME_KEY = "beatforge_theme_v1";
 const THEME_FIELDS = [
@@ -2093,32 +2089,6 @@ async function registerCloseHandler() {
   });
 }
 
-const enterAppFromWelcome = safeAsync(async () => {
-  if (welcomeEntered) return;
-  welcomeEntered = true;
-  stopAllAudiblePlayback();
-  ui.showDashboard();
-  await refreshDashboard();
-  welcomeScreen.removeEventListener("click", enterAppFromWelcome);
-  welcomeContent?.removeEventListener("click", enterAppFromWelcome);
-  welcomeScreen.removeEventListener("keydown", onWelcomeKey);
-});
-
-const onWelcomeKey = (event) => {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    enterAppFromWelcome();
-  }
-};
-
-welcomeScreen.addEventListener("click", enterAppFromWelcome);
-welcomeContent?.addEventListener("click", enterAppFromWelcome);
-welcomeScreen.addEventListener("keydown", onWelcomeKey);
-welcomeCloseBtn?.addEventListener("click", (event) => {
-  event.stopPropagation();
-  enterAppFromWelcome();
-});
-
 (async () => {
   try {
     try {
@@ -2126,7 +2096,9 @@ welcomeCloseBtn?.addEventListener("click", (event) => {
     } catch (err) {
       console.warn("Close-handler registration failed; app will continue without close intercept:", err);
     }
-    ui.showWelcome();
+    stopAllAudiblePlayback();
+    ui.showDashboard();
+    await refreshDashboard();
   } catch (err) {
     console.error("Startup failure", err);
     await showModalError("App failed to initialize.");
