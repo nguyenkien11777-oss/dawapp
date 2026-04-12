@@ -2,7 +2,6 @@ import { STEPS } from "./constants.js";
 
 export class UI {
   constructor() {
-    this.welcome = document.getElementById("welcomeScreen");
     this.dashboard = document.getElementById("dashboard");
     this.sequencer = document.getElementById("sequencerScreen");
     this.audioEditor = document.getElementById("audioEditorScreen");
@@ -15,11 +14,10 @@ export class UI {
     this.logs = [];
   }
 
-  showWelcome() { this.welcome.hidden = false; this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
-  showDashboard() { this.welcome.hidden = true; this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
-  showSequencer() { this.welcome.hidden = true; this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
-  showAudioEditor() { this.welcome.hidden = true; this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; this.themeScreen.hidden = true; }
-  showThemeScreen() { this.welcome.hidden = true; this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = false; }
+  showDashboard() { this.dashboard.hidden = false; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showSequencer() { this.dashboard.hidden = true; this.sequencer.hidden = false; this.audioEditor.hidden = true; this.themeScreen.hidden = true; }
+  showAudioEditor() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = false; this.themeScreen.hidden = true; }
+  showThemeScreen() { this.dashboard.hidden = true; this.sequencer.hidden = true; this.audioEditor.hidden = true; this.themeScreen.hidden = false; }
 
   renderProjectCards(cards, handlers) {
     this.projectCards.innerHTML = "";

@@ -244,7 +244,7 @@ Mọi phiên bản sau v3.5 khi mở rộng Audio Editor/Import/Export phải ch
 - Không phá filesystem containment và relative-path persistence.
 - Không tạo unhandled async rejection từ UI/editor callbacks.
 
-16. v4 Feature Execution Layer (Quick Assist + Welcome + UX Safety)
+16. v4 Feature Execution Layer (Quick Assist + UX Safety)
 
 v4 mở rộng trên v3.5, vẫn giữ toàn bộ safety kernel của v2.
 
@@ -258,7 +258,7 @@ Mọi gợi ý quick-assist khi user nhấn phải có thể auto-apply ngay tro
 
 16.3 Screen Transition Audio Kill Rule
 
-Khi chuyển screen (Welcome/Dashboard/Sequencer/Theme/Audio Editor), mọi nguồn phát âm thanh đang chạy phải dừng hoàn toàn trước khi hoàn tất chuyển screen.
+Khi chuyển screen (Dashboard/Sequencer/Theme/Audio Editor), mọi nguồn phát âm thanh đang chạy phải dừng hoàn toàn trước khi hoàn tất chuyển screen.
 
 16.4 Preset Sample Selector Visibility Rule
 
@@ -276,15 +276,14 @@ Màu nền/visual base của Pitch knob là chuẩn tham chiếu cho các contro
 
 REC Row Selection panel trong Audio Editor phải kéo theo chiều cao màn hình editor và nhóm nút Reset/Save phải neo ở đáy panel để thao tác nhất quán.
 
-16.8 Welcome Screen Entry Rule
+16.8 Direct Dashboard Entry Rule
 
-Khi khởi động app, màn hình đầu tiên là Welcome screen riêng.
-Welcome screen phải có tính nhận diện chuyên nghiệp, hiển thị rõ phiên bản đang chạy và thông tin định hướng cơ bản.
-User nhấn/chạm bất kỳ vị trí hợp lệ để vào Dashboard.
+Khi khởi động app, màn hình đầu tiên phải là Dashboard (project list) để vào workflow ngay.
+Không được chèn bước trung gian bắt buộc trước Dashboard.
 
 16.9 Forward Stability Contract for v4+
 
-Mọi phiên bản sau v4 khi mở rộng Quick Assist/Welcome/Arrangement/Mixing phải chứng minh:
+Mọi phiên bản sau v4 khi mở rộng Quick Assist/Arrangement/Mixing phải chứng minh:
 - Không phá transport state machine authority.
 - Không phá in-flight guard lifecycle.
 - Không phá filesystem containment và relative-path persistence.

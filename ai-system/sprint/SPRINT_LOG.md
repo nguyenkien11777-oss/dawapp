@@ -131,3 +131,30 @@
   - Updated `ai-system/AI_STATE.yaml` snapshot_date to `2026-03-12`; phase retained `v4_execution_on_v2_safety`.
   - Updated `ai-system/LONG_TERM_MEMORY.md` with concise synchronization note for this governance extension.
 - Final system state: **STABLE – Constitution Updated**.
+
+## 2026-04-12 — Governance Closure for Direct Dashboard Startup
+- Scope reviewed (live re-scan):
+  - `beatforge/src/main.js`
+  - `beatforge/src/ui.js`
+  - `beatforge/index.html`
+  - `beatforge/ARCHITECTURE_V1_V2.md`
+  - `ai-system/AI_STATE.yaml`
+  - `ai-system/LONG_TERM_MEMORY.md`
+- Drift Check result: **Drift detected in `beatforge/src/main.js`, `beatforge/src/ui.js`, `beatforge/index.html`, `beatforge/ARCHITECTURE_V1_V2.md`** relative to `snapshot_date: 2026-03-12`; drift is constrained to startup flow changing from welcome-first to direct dashboard entry.
+- Constitutional Impact Assessment:
+  - Alters architectural invariants: YES (rule 16.8 changed to Direct Dashboard Entry Rule)
+  - Alters module boundaries: NO
+  - Alters authority ownership: NO
+  - Alters transport model: NO
+  - Alters filesystem guarantees: NO
+  - Constitutional document update required: YES (completed in `beatforge/ARCHITECTURE_V1_V2.md`)
+- Compliance Gate (ARCHITECTURE_DOC = `beatforge/ARCHITECTURE_V1_V2.md`):
+  - Deterministic transport behavior: PASS
+  - Single-authority control paths: PASS
+  - In-flight guard discipline: PASS
+  - Canonical filesystem containment: PASS
+  - Async isolation behavior: PASS
+- State Synchronization:
+  - Updated `ai-system/AI_STATE.yaml` snapshot_date to `2026-04-12`; phase retained `v4_execution_on_v2_safety`.
+  - Updated `ai-system/LONG_TERM_MEMORY.md` synchronization note for startup-flow drift and constitutional revision.
+- Final system state: **STABLE – Constitution Updated**.

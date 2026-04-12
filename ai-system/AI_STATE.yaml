@@ -1,5 +1,5 @@
 version: 1
-snapshot_date: 2026-03-12
+snapshot_date: 2026-04-12
 project: BeatForge
 constitutional_authority: ARCHITECTURE_DOC
 phase: v4_execution_on_v2_safety
@@ -30,5 +30,5 @@ known_risks:
   - no explicit automated test suite observed in repository
   - concurrent UI actions remain sensitive to future feature additions without guard parity
 recent_edit_signal:
-  - v4 quick-assist menu split from Option; welcome-first entry screen and screen-transition audio kill behavior enforced
+  - v4 quick-assist menu split from Option; direct-to-dashboard startup and screen-transition audio kill behavior enforced
   - status log/readability constraints and preset selector visibility limits aligned with v4 UX safety rules

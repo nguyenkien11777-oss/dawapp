@@ -85,3 +85,10 @@ Must be revalidated after structural module changes.
 - Constitutional impact assessment: architectural rule-set expanded by appending v4 sections in ARCHITECTURE_DOC; no rollback to v2/v3.5 safety guarantees.
 - Compliance gate outcome: deterministic transport PASS, single-authority control PASS, in-flight guards PASS, filesystem containment PASS, async isolation PASS.
 - System state after synchronization: STABLE – Constitution Updated.
+
+## 2026-04-12 Synchronization Note (startup flow simplification)
+- Drift check executed against live startup/screen modules: `beatforge/src/main.js`, `beatforge/src/ui.js`, `beatforge/index.html`, with constitutional sync in `beatforge/ARCHITECTURE_V1_V2.md` and memory snapshot update in `ai-system/AI_STATE.yaml`.
+- Result: Drift detected in the modules above relative to snapshot baseline, limited to removal of mandatory Welcome entry step and direct startup into Dashboard project list.
+- Constitutional impact assessment: v4 rule 16.8 updated from Welcome-first entry to direct Dashboard entry; transport authority, in-flight guard lifecycle, filesystem containment, and async isolation invariants remain preserved.
+- Compliance gate outcome: deterministic transport PASS, single-authority control PASS, in-flight guards PASS, filesystem containment PASS, async isolation PASS.
+- System state after synchronization: STABLE – Constitution Updated.
